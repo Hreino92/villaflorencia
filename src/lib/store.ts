@@ -45,7 +45,7 @@ interface State {
 }
 
 function emptyDB(config: Config = defaultConfig('Residencial', localISODate())): DB {
-  return { version: 1, config, houses: [], charges: [], payments: [], credits: {}, notifications: [], visits: [], reports: [], users: [] };
+  return { version: 1, config, houses: [], charges: [], payments: [], credits: {}, notifications: [], visits: [], reports: [], users: [], expenses: [] };
 }
 
 let state: State = { db: emptyDB(), status: 'loading', user: null, setupNeeded: null, error: null };
@@ -104,6 +104,7 @@ const KEYS = {
   visits: 'code',
   reports: 'period',
   users: 'id',
+  expenses: 'id',
 } as const;
 type ListName = keyof typeof KEYS;
 

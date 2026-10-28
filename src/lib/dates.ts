@@ -47,8 +47,11 @@ export function fmtDateTime(iso: string): string {
   return `${fmtDate(localISODate(d))} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+const MONEY = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** $1,234.56 (formato usado en El Salvador). */
 export function money(n: number): string {
-  return `$${n.toFixed(2)}`;
+  return `${n < 0 ? '-' : ''}$${MONEY.format(Math.abs(n))}`;
 }
 
 export function round2(n: number): number {

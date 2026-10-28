@@ -1,6 +1,6 @@
-import type { DB, House, Payment } from './types';
-import { chargesOf, houseDebt, houseLabel, overdueChargesOf, pendingOf } from './billing';
-import { capitalize, periodLabel, periodOf, round2 } from './dates';
+import type { DB, Expense, House, Payment } from './types';
+import { chargesOf, chargeStatus, houseDebt, houseLabel, overdueChargesOf, pendingOf, type ChargeStatus } from './billing';
+import { addMonths, capitalize, periodLabel, periodOf, round2 } from './dates';
 
 export function paymentsInPeriod(db: DB, period: string): Payment[] {
   return db.payments.filter((p) => periodOf(p.date) === period).sort((a, b) => a.receiptNo - b.receiptNo);
@@ -61,6 +61,80 @@ export function statement(db: DB, houseId: string): StatementRow[] {
   return events.map((e) => {
     balance = round2(balance + e.charge - e.payment);
     return { date: e.date, concept: e.concept, charge: e.charge, payment: e.payment, balance };
+  });
+}
+
+// ---------- Reportes por rango de meses ----------
+
+export function periodsBetween(from: string, to: string): string[] {
+  const out: string[] = [];
+  for (let p = from; p <= to; p = addMonths(p, 1)) out.push(p);
+  return out;
+}
+
+export function rangeLabel(from: string, to: string): string {
+  return from === to ? capitalize(periodLabel(from)) : `${capitalize(periodLabel(from))} a ${periodLabel(to)}`;
+}
+
+export interface FinancialSummary {
+  months: { period: string; income: number; expenses: number }[];
+  income: number;
+  expenses: number;
+  balance: number;
+  byCategory: { category: string; amount: number }[];
+  payments: Payment[];
+  expenseList: Expense[];
+}
+
+/** Ingresos (pagos recibidos) contra gastos, mes a mes, en el rango. */
+export function financialSummary(db: DB, from: string, to: string): FinancialSummary {
+  const periods = periodsBetween(from, to);
+  const inRange = (date: string) => periodOf(date) >= from && periodOf(date) <= to;
+  const payments = db.payments.filter((p) => inRange(p.date)).sort((a, b) => a.date.localeCompare(b.date) || a.receiptNo - b.receiptNo);
+  const expenseList = db.expenses.filter((e) => inRange(e.date)).sort((a, b) => a.date.localeCompare(b.date));
+  const months = periods.map((period) => ({
+    period,
+    income: round2(payments.filter((p) => periodOf(p.date) === period).reduce((s, p) => s + p.amount, 0)),
+    expenses: round2(expenseList.filter((e) => periodOf(e.date) === period).reduce((s, e) => s + e.amount, 0)),
+  }));
+  const cat = new Map<string, number>();
+  for (const e of expenseList) cat.set(e.category, round2((cat.get(e.category) ?? 0) + e.amount));
+  const income = round2(months.reduce((s, m) => s + m.income, 0));
+  const expenses = round2(months.reduce((s, m) => s + m.expenses, 0));
+  return {
+    months,
+    income,
+    expenses,
+    balance: round2(income - expenses),
+    byCategory: [...cat].map(([category, amount]) => ({ category, amount })).sort((a, b) => b.amount - a.amount),
+    payments,
+    expenseList,
+  };
+}
+
+export interface HouseRangeRow {
+  house: House;
+  cells: { period: string; amount: number; paid: number; status: ChargeStatus | 'sin cargo' }[];
+  billed: number;
+  paid: number;
+  pending: number;
+  totalDebt: number; // incluye saldos anteriores y meses fuera del rango
+}
+
+/** Situación de cada casa, mes por mes, en el rango. */
+export function housesInRange(db: DB, from: string, to: string, today: string): HouseRangeRow[] {
+  const periods = periodsBetween(from, to);
+  return db.houses.map((house) => {
+    const monthly = new Map(db.charges.filter((c) => c.houseId === house.id && c.kind === 'monthly').map((c) => [c.period, c]));
+    const cells = periods.map((period) => {
+      const c = monthly.get(period);
+      return c
+        ? { period, amount: c.amount, paid: c.paid, status: chargeStatus(c, today) }
+        : { period, amount: 0, paid: 0, status: 'sin cargo' as const };
+    });
+    const billed = round2(cells.reduce((s, c) => s + c.amount, 0));
+    const paid = round2(cells.reduce((s, c) => s + c.paid, 0));
+    return { house, cells, billed, paid, pending: round2(billed - paid), totalDebt: houseDebt(db, house.id) };
   });
 }
 

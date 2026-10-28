@@ -63,6 +63,11 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Gastos de la residencial: solo la administración.
+    match /expenses/{id} {
+      allow read, write: if isAdmin();
+    }
+
     // Visitas: el residente crea y anula las de su casa (si la casa se lo permite),
     // el vigilante solo marca la entrada y el administrador puede todo.
     match /visits/{code} {

@@ -75,6 +75,34 @@ export interface Visit {
   guardName: string | null;
 }
 
+export const EXPENSE_CATEGORIES = [
+  'Vigilancia',
+  'Mantenimiento y reparaciones',
+  'Jardinería y limpieza',
+  'Agua y energía eléctrica',
+  'Administración',
+  'Materiales y suministros',
+  'Otros',
+] as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+
+export const PAYMENT_METHODS = ['Efectivo', 'Transferencia', 'Cheque'] as const;
+
+/** Gasto de la residencial (salarios de vigilancia, reparaciones, servicios, etc.). */
+export interface Expense {
+  id: string;
+  date: string; // YYYY-MM-DD
+  concept: string;
+  category: ExpenseCategory;
+  amount: number;
+  provider: string; // a quién se le pagó
+  paymentMethod: (typeof PAYMENT_METHODS)[number];
+  document: string; // número de factura, recibo o comprobante
+  details: string;
+  registeredBy: string;
+  createdAt: string;
+}
+
 export interface MonthlyReport {
   period: string; // YYYY-MM del mes cerrado
   generatedAt: string;
@@ -118,6 +146,7 @@ export interface DB {
   visits: Visit[];
   reports: MonthlyReport[];
   users: User[];
+  expenses: Expense[];
 }
 
 /** Datos del usuario que inició sesión (se arman a partir de su cuenta en cada render). */

@@ -14,6 +14,7 @@
     "deploy:rules": "firebase deploy --only firestore:rules"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
     "firebase": "^11.10.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.9",

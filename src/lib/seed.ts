@@ -103,6 +103,7 @@ export function createSeed(base: Config): DB {
     notifications: [],
     visits: [],
     reports: [],
+    expenses: [],
     users: [], // las cuentas se crean en Firebase Auth desde la pantalla Usuarios
   };
 
@@ -143,5 +144,22 @@ export function createSeed(base: Config): DB {
     { code: 'P3XH8R', houseId: 'C-1', visitorName: 'Técnico de Internet (Tigo)', dui: '05123987-4', date: today, reason: 'Instalación de servicio', createdBy: houses[12].owner.name, createdAt: `${today}T06:50:00`, enteredAt: `${today}T09:05:00`, guardName: 'Pedro Sorto' },
     { code: 'W9BN2C', houseId: 'B-5', visitorName: 'Lucía Benítez', dui: '03344556-7', date: today, reason: 'Limpieza', createdBy: houses[10].owner.name, createdAt: `${today}T06:00:00`, enteredAt: null, guardName: null },
   ];
+
+  // Gastos típicos de cada mes, para que el informe financiero tenga datos.
+  const expenses: DB['expenses'] = [];
+  for (let p = startPeriod; p <= current; p = addMonths(p, 1)) {
+    const add = (day: number, concept: string, category: DB['expenses'][number]['category'], amount: number, provider: string, paymentMethod: DB['expenses'][number]['paymentMethod'] = 'Efectivo') => {
+      const date = `${p}-${String(day).padStart(2, '0')}`;
+      if (date > today) return;
+      expenses.push({ id: `exp-${p}-${expenses.length}`, date, concept, category, amount, provider, paymentMethod, document: `F-${p.replace('-', '')}${expenses.length}`, details: '', registeredBy: 'Administración', createdAt: `${date}T09:00:00` });
+    };
+    add(15, 'Servicio de vigilancia (1.ª quincena)', 'Vigilancia', 165, 'Seguridad Integral S.A. de C.V.', 'Transferencia');
+    add(28, 'Servicio de vigilancia (2.ª quincena)', 'Vigilancia', 165, 'Seguridad Integral S.A. de C.V.', 'Transferencia');
+    add(10, 'Energía eléctrica alumbrado y portón', 'Agua y energía eléctrica', 38 + Math.round(r() * 15), 'CAESS', 'Transferencia');
+    add(12, 'Servicio de jardinería áreas verdes', 'Jardinería y limpieza', 45, 'Jardines Rivera');
+    add(20, 'Productos de limpieza caseta', 'Materiales y suministros', 12 + Math.round(r() * 10), 'Ferretería El Martillo');
+    if (r() > 0.5) add(22, 'Reparación de motor del portón', 'Mantenimiento y reparaciones', 45 + Math.round(r() * 60), 'Servicios Técnicos Portillo');
+  }
+  db.expenses = expenses;
   return db;
 }

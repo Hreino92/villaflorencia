@@ -100,6 +100,14 @@ test('una cuenta desactivada no ve nada', async () => {
   await assertFails(getDocs(collection(db, 'users')));
 });
 
+test('los gastos solo los ve y registra la administración', async () => {
+  const gasto = { id: 'g1', date: '2026-10-05', concept: 'Salario vigilante', amount: 400 };
+  await assertSucceeds(setDoc(doc(as('admin'), 'expenses/g1'), gasto));
+  await assertFails(getDoc(doc(as('ownerA1'), 'expenses/g1')));
+  await assertFails(getDoc(doc(as('guard'), 'expenses/g1')));
+  await assertFails(setDoc(doc(as('ownerA1'), 'expenses/g2'), gasto));
+});
+
 test('el admin gestiona todo', async () => {
   const db = as('admin');
   await assertSucceeds(getDocs(collection(db, 'users')));
