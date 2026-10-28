@@ -10,6 +10,12 @@ App web para registrar los pagos en efectivo de vigilancia y mantenimiento, envi
 2. La primera vez, ejecuta `npm install`.
 3. Ejecuta `npm run dev` y abre http://localhost:5173
 
+## Publicación (GitHub Pages)
+
+La demo está publicada en **https://hreino92.github.io/villaflorencia/**.
+
+Cada vez que se suben cambios a la rama `main`, GitHub compila y publica la app solo. El proceso tarda 1 o 2 minutos y está en `.github/workflows/deploy.yml`. El avance se ve en la pestaña **Actions** del repositorio.
+
 ## Usuarios de prueba
 
 Todos entran por la misma pantalla de login. Según el rol de la cuenta, la app lleva a cada usuario a su propia sección.
