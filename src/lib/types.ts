@@ -96,12 +96,11 @@ export interface Config {
   };
 }
 
-/** Cuenta de acceso. En producción, el correo y la contraseña los guarda Firebase Auth (cifrada). */
+/** Perfil y rol de una cuenta (users/{uid}). La contraseña la guarda Firebase Auth, nunca la app. */
 export interface User {
-  id: string;
+  id: string; // uid de Firebase Auth
   name: string;
   email: string;
-  password: string; // solo demo: texto plano en el navegador
   role: Role;
   houseId?: string; // residentes
   relation?: Relation; // residentes: propietario o inquilino

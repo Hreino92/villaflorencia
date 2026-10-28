@@ -1,4 +1,4 @@
-import type { DB, House, Person } from './types';
+import type { Config, DB, House, Person } from './types';
 import { addMonths, dueDateFor, localISODate, periodOf } from './dates';
 import { applyPayment, runAutomations } from './billing';
 
@@ -24,8 +24,19 @@ function rng(seed: number) {
   };
 }
 
-// Contraseñas de la demo (están documentadas en README.md).
-export const DEMO_PASSWORDS = { admin: 'Admin2026!', vigilante: 'Vigilante2026!', residente: 'Residente2026!' };
+/** Configuración con la que arranca una residencial nueva. */
+export function defaultConfig(name: string, today: string): Config {
+  return {
+    name,
+    fee: 22,
+    dueDay: 30,
+    advanceDays: 3,
+    startPeriod: periodOf(today),
+    nextReceiptNo: 1,
+    simulatedToday: null,
+    templates: { ...DEFAULT_TEMPLATES },
+  };
+}
 
 function person(r: () => number, i: number, email: string): Person {
   const name = `${FIRST[i % FIRST.length]} ${LAST[Math.floor(r() * LAST.length)]} ${LAST[Math.floor(r() * LAST.length)]}`;
@@ -34,7 +45,8 @@ function person(r: () => number, i: number, email: string): Person {
   return { name, phone, email, dui };
 }
 
-export function createSeed(): DB {
+/** Datos de ejemplo (casas, cuotas, pagos y visitas) para probar una residencial recién creada. */
+export function createSeed(base: Config): DB {
   const r = rng(42);
   const today = localISODate();
   const current = periodOf(today);
@@ -62,16 +74,7 @@ export function createSeed(): DB {
 
   let db: DB = {
     version: 1,
-    config: {
-      name: 'Residencial Villa Florencia',
-      fee: 22,
-      dueDay: 30,
-      advanceDays: 3,
-      startPeriod,
-      nextReceiptNo: 1,
-      simulatedToday: null,
-      templates: { ...DEFAULT_TEMPLATES },
-    },
+    config: { ...base, startPeriod, nextReceiptNo: 1 },
     houses,
     charges: [
       {
@@ -100,26 +103,7 @@ export function createSeed(): DB {
     notifications: [],
     visits: [],
     reports: [],
-    users: [
-      { id: 'u-admin', name: 'Administración', email: 'admin@villaflorencia.com', password: DEMO_PASSWORDS.admin, role: 'admin', active: true },
-      { id: 'u-g1', name: 'Pedro Sorto', email: 'vigilancia1@villaflorencia.com', password: DEMO_PASSWORDS.vigilante, role: 'vigilante', active: true },
-      { id: 'u-g2', name: 'Julio Amaya', email: 'vigilancia2@villaflorencia.com', password: DEMO_PASSWORDS.vigilante, role: 'vigilante', active: true },
-      ...houses.flatMap((h) =>
-        [
-          { p: h.owner, relation: 'owner' as const },
-          ...(h.tenant ? [{ p: h.tenant, relation: 'tenant' as const }] : []),
-        ].map(({ p, relation }) => ({
-          id: `u-${h.id}-${relation}`,
-          name: p.name,
-          email: p.email,
-          password: DEMO_PASSWORDS.residente,
-          role: 'residente' as const,
-          houseId: h.id,
-          relation,
-          active: true,
-        })),
-      ),
-    ],
+    users: [], // las cuentas se crean en Firebase Auth desde la pantalla Usuarios
   };
 
   db = runAutomations(db, today);

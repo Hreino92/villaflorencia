@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { resetDemo, update, useDB } from '../../lib/store';
+import { update, useDB } from '../../lib/store';
+import { usingEmulators } from '../../lib/firebase';
 import { DEFAULT_TEMPLATES } from '../../lib/seed';
 import type { Config } from '../../lib/types';
 import { Field, PageTitle } from '../../components/ui';
@@ -62,10 +63,11 @@ export default function Settings() {
         </div>
       </form>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="card border-amber-300">
-          <h2 className="mb-1 font-bold">Herramientas de la demo</h2>
-          <p className="mb-3 text-sm text-slate-500">Solo existen en el prototipo, para probar el comportamiento en otras fechas.</p>
+      {/* Solo en el modo de pruebas local: en producción cambiaría la fecha para todos. */}
+      {usingEmulators && (
+        <div className="card max-w-xl border-amber-300">
+          <h2 className="mb-1 font-bold">Herramientas de prueba</h2>
+          <p className="mb-3 text-sm text-slate-500">Solo aparecen con los emuladores locales, para probar el comportamiento en otras fechas.</p>
           <div className="mb-4 flex flex-wrap items-end gap-2">
             <Field label="Simular la fecha de hoy">
               <input className="input" type="date" value={simDate} onChange={(e) => setSimDate(e.target.value)} />
@@ -73,17 +75,9 @@ export default function Settings() {
             <button className="btn btn-secondary" onClick={() => applySimDate(simDate)} disabled={!simDate}>Aplicar</button>
             <button className="btn btn-secondary" onClick={() => applySimDate(null)}>Usar fecha real</button>
           </div>
-          <p className="mb-4 text-xs text-slate-500">Al avanzar a un mes nuevo se generan las cuotas y el reporte de cierre como lo harían las tareas automáticas.</p>
-          <button
-            className="btn btn-danger"
-            onClick={() => {
-              if (confirm('¿Borrar todos los cambios y volver a los datos de ejemplo?')) resetDemo();
-            }}
-          >
-            Reiniciar datos de ejemplo
-          </button>
+          <p className="text-xs text-slate-500">Al avanzar a un mes nuevo se generan las cuotas y el reporte de cierre.</p>
         </div>
-      </div>
+      )}
     </>
   );
 }

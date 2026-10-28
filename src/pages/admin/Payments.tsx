@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { getDB, update, useDB, useToday } from '../../lib/store';
-import { applyPayment, houseDebt, houseLabel, openChargesOf, overdueDebt, pendingOf } from '../../lib/billing';
+import { registerPayment, useDB, useSession, useToday } from '../../lib/store';
+import { houseDebt, houseLabel, openChargesOf, overdueDebt, pendingOf } from '../../lib/billing';
 import { fmtDate, fmtDateTime, localISODate, money } from '../../lib/dates';
 import type { Payment } from '../../lib/types';
 import { Empty, Field, Modal, PageTitle } from '../../components/ui';
@@ -86,6 +86,9 @@ function RegisterPayment({ onClose, onDone }: { onClose: () => void; onDone: (p:
   const [amount, setAmount] = useState('');
   const [payer, setPayer] = useState('');
   const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const session = useSession()!;
 
   function pickHouse(id: string) {
     setHouseId(id);
@@ -96,7 +99,7 @@ function RegisterPayment({ onClose, onDone }: { onClose: () => void; onDone: (p:
     setPayer(h.tenant && h.notifyTo === 'tenant' ? h.tenant.name : h.owner.name);
   }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!house) return;
     const value = Number(amount);
@@ -105,14 +108,16 @@ function RegisterPayment({ onClose, onDone }: { onClose: () => void; onDone: (p:
     const now = new Date();
     const time = now.toTimeString().slice(0, 8);
     const date = db.config.simulatedToday ? `${today}T${time}` : `${localISODate(now)}T${time}`;
-    let created: Payment | null = null;
-    update((d) => {
-      const r = applyPayment(d, { houseId: house.id, amount: value, payerName: payer || house.owner.name, receivedBy: 'Administración', note, date });
-      created = r.payment;
-      return r.db;
-    });
-    const saved = getDB().payments.find((p) => p.id === (created as Payment | null)?.id);
-    if (saved) onDone(saved);
+    setBusy(true);
+    setError('');
+    try {
+      const payment = await registerPayment({ houseId: house.id, amount: value, payerName: payer || house.owner.name, receivedBy: session.name, note, date });
+      onDone(payment);
+    } catch (err) {
+      console.error(err);
+      setError('No se pudo registrar el pago. Revisa tu conexión a internet e intenta de nuevo.');
+      setBusy(false);
+    }
   }
 
   return (
@@ -167,9 +172,10 @@ function RegisterPayment({ onClose, onDone }: { onClose: () => void; onDone: (p:
             </Field>
           </>
         )}
+        {error && <p className="rounded-md bg-red-50 p-2 text-sm text-red-700">{error}</p>}
         <div className="flex justify-end gap-2">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" disabled={!house}>Registrar y generar recibo</button>
+          <button className="btn btn-primary" disabled={!house || busy}>{busy ? 'Registrando…' : 'Registrar y generar recibo'}</button>
         </div>
       </form>
     </Modal>

@@ -2,6 +2,7 @@ import { HashRouter, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 import RequireRole, { HomeRedirect } from './components/RequireRole';
 import Login from './pages/Login';
+import Setup from './pages/Setup';
 import Dashboard from './pages/admin/Dashboard';
 import Houses from './pages/admin/Houses';
 import Payments from './pages/admin/Payments';
@@ -18,6 +19,7 @@ export default function App() {
     <HashRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/setup" element={<Setup />} />
 
         <Route path="/admin" element={<RequireRole role="admin"><Layout /></RequireRole>}>
           <Route index element={<Dashboard />} />

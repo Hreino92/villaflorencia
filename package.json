@@ -5,11 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:local": "vite --mode emulators",
     "build": "vite build",
     "check": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "emulators": "firebase emulators:start --project demo-villaflorencia",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-villaflorencia \"node --test tests/rules.test.mjs\"",
+    "deploy:rules": "firebase deploy --only firestore:rules"
   },
   "dependencies": {
+    "firebase": "^11.10.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.9",
     "react": "^18.3.1",
@@ -17,10 +22,12 @@
     "react-router-dom": "^6.30.1"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
     "@tailwindcss/vite": "^4.1.11",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.5.2",
+    "firebase-tools": "^15.34.1",
     "tailwindcss": "^4.1.11",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"

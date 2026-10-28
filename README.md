@@ -1,86 +1,83 @@
-# Villa Florencia: prototipo
+# Villa Florencia
 
 App web para registrar los pagos en efectivo de vigilancia y mantenimiento, enviar avisos de cobro por WhatsApp, emitir recibos y reportes, y controlar visitas con códigos.
 
-> **Estado: demo.** Los datos se guardan en el navegador (localStorage) y son de ejemplo. Lo que se cambia en un navegador no se ve en otro. El siguiente paso es conectar Firebase (ver abajo).
+Los datos están en **Firebase**: Authentication guarda las cuentas y Firestore guarda los datos. Todos los dispositivos ven la misma información en tiempo real. Funciona en el plan gratuito **Spark** de Firebase, sin tarjeta.
 
-## Cómo abrirlo
+## Usuarios y acceso por rol
 
-1. Abre una terminal en esta carpeta.
-2. La primera vez, ejecuta `npm install`.
-3. Ejecuta `npm run dev` y abre http://localhost:5173
+Hay una sola pantalla de login. Según el rol de la cuenta, cada usuario va a su sección:
 
-## Publicación (GitHub Pages)
+| Ruta | Quién puede entrar | Qué ve |
+|---|---|---|
+| `/admin/...` | Administradores | Todo: casas, pagos, avisos, reportes, usuarios, configuración |
+| `/vigilante` | Vigilantes | Casas y visitas del día. Solo puede marcar la entrada. |
+| `/residente/...` | Propietarios e inquilinos | Solo su casa: cuotas, recibos y sus visitas |
 
-La demo está publicada en **https://hreino92.github.io/villaflorencia/**.
+La protección funciona en dos niveles:
+- **En la app** (`src/components/RequireRole.tsx`): manda a cada quien a su sección.
+- **En el servidor** (`firestore.rules`): Firestore rechaza cualquier lectura o escritura que el rol no permita, aunque alguien modifique la app en su navegador.
 
-Cada vez que se suben cambios a la rama `main`, GitHub compila y publica la app solo. El proceso tarda 1 o 2 minutos y está en `.github/workflows/deploy.yml`. El avance se ve en la pestaña **Actions** del repositorio.
+**Cuentas:**
+- **Primera vez:** la app muestra la pantalla de **Configuración inicial**, donde se crea la residencial y la cuenta del administrador principal. Solo se puede hacer una vez.
+- **Demás cuentas:** el administrador las crea en **Usuarios** con una contraseña inicial.
+- **Cambiar la contraseña:** cada persona lo hace con **"Olvidé mi contraseña"** en el login. El administrador también puede enviarle el enlace por correo desde Usuarios.
 
-## Usuarios de prueba
+## Probar en esta computadora (emuladores, sin tocar la nube)
 
-Todos entran por la misma pantalla de login. Según el rol de la cuenta, la app lleva a cada usuario a su propia sección.
+Con `npm run dev:local`, la app usa los emuladores locales de Firebase en lugar del proyecto real. Se necesita Java (ya instalado). `npm run dev`, en cambio, usa el proyecto real.
+
+1. En una terminal: `npm run emulators` (deja la ventana abierta).
+2. En otra: `npm run dev:local` y abre http://localhost:5173
+3. La primera vez aparece la Configuración inicial. Puedes marcar **Cargar datos de ejemplo**.
+
+Cuentas de prueba usadas en los emuladores (solo existen en esta computadora):
 
 | Rol | Correo | Contraseña |
 |---|---|---|
-| Administrador | `admin@villaflorencia.com` | `Admin2026!` |
-| Vigilante | `vigilancia1@villaflorencia.com` | `Vigilante2026!` |
-| Vigilante | `vigilancia2@villaflorencia.com` | `Vigilante2026!` |
-| Residente: propietario, Polígono A, Lote 1 (al día) | `propietario.a1@villaflorencia.com` | `Residente2026!` |
-| Residente: inquilino, Polígono A, Lote 2 | `inquilino.a2@villaflorencia.com` | `Residente2026!` |
-| Residente: propietario, Polígono B, Lote 4 (en mora) | `propietario.b4@villaflorencia.com` | `Residente2026!` |
+| Administrador | `admin@prueba.test` | `Prueba2026!` |
+| Vigilante | `vigilante@prueba.test` | `Prueba2026!` |
+| Residente (inquilino, Polígono A, Lote 2) | `inquilino@prueba.test` | `Prueba2026!` |
 
-**Todos los residentes** de la demo tienen cuenta con la contraseña `Residente2026!`. Los correos siguen este formato:
-- Propietario: `propietario.<polígono><lote>@villaflorencia.com`, por ejemplo `propietario.c5@villaflorencia.com`.
-- Inquilino: `inquilino.<polígono><lote>@villaflorencia.com`. Solo existe en las casas que tienen inquilino: los lotes 2 y 5 de cada polígono.
+Los datos de los emuladores se borran al cerrarlos. Se ven en http://127.0.0.1:4000 mientras están abiertos.
 
-El administrador puede crear, editar, desactivar o eliminar cuentas en **Usuarios**, y cambiar la contraseña de cualquiera.
+**Pruebas automáticas de seguridad:** `npm run test:rules` verifica en el emulador que cada rol solo pueda leer y escribir lo que le corresponde.
 
-> Estas contraseñas son solo para la demo. En la versión con Firebase, las contraseñas las guarda Firebase Auth cifradas, y cada usuario debe cambiar la suya en el primer ingreso.
+## Proyecto de Firebase
 
-## Acceso por rol
+- **Proyecto:** `villaflorencia-c1844`, en el plan Spark. Su configuración web está en `src/firebase-config.ts`.
+- **Requisitos en la consola:**
+  - **Authentication** con **Correo/contraseña** activado.
+  - **Firestore Database** creada.
+  - `hreino92.github.io` en **Authentication → Configuración → Dominios autorizados**.
+- **Reglas de seguridad:** se publican cada vez que cambia `firestore.rules`. Hay dos formas:
+  - Copiar el archivo en **Firestore → Reglas** y presionar **Publicar**.
+  - O desde la terminal: `npx firebase login` y después `npm run deploy:rules`.
 
-Las rutas de cada rol están protegidas por `src/components/RequireRole.tsx`:
+## Publicación (GitHub Pages)
 
-| Ruta | Quién puede entrar |
-|---|---|
-| `/login` | Cualquiera (si ya inició sesión, lo manda a su inicio) |
-| `/admin/...` | Solo administradores |
-| `/vigilante` | Solo vigilantes |
-| `/residente/...` | Solo residentes, y solo ven su propia casa |
+La app está publicada en **https://hreino92.github.io/villaflorencia/**. Cada vez que se suben cambios a `main`, GitHub la compila y publica sola (`.github/workflows/deploy.yml`).
 
-- Sin sesión, cualquier ruta protegida manda al login. Al entrar, el usuario vuelve a la página que pedía si le corresponde.
-- Si alguien abre una ruta de otro rol, lo redirige a su propio inicio.
-- Si el administrador desactiva una cuenta o le cambia el rol, se aplica de inmediato.
+## Reglas de cobro
 
-## Qué incluye
+La cuota es de $22.00 mensual y vence el día 30 (en febrero, el último día del mes). El aviso anticipado sale 3 días antes. Todo se cambia en Configuración.
 
-| Usuario | Pantallas |
-|---|---|
-| Administrador | **Inicio:** resumen del mes. **Casas:** propietario, inquilino, a quién avisar, quién genera códigos, cuota especial y saldo anterior. **Pagos:** registrar pago en efectivo y recibo PDF. **Avisos WhatsApp.** **Reportes:** ingresos, mora y estado de cuenta en PDF y Excel. **Usuarios.** **Configuración.** |
-| Residente | **Mi cuenta:** cuotas, saldo y recibos. **Mis visitas:** generar y compartir códigos. |
-| Vigilante | **Caseta:** verificar el código, buscar por nombre o DUI y dar entrada. |
-
-**Reglas configuradas:** cuota de $22.00 mensual, vence el día 30 (en febrero, el último día del mes) y el aviso anticipado sale 3 días antes. Todo se puede cambiar en Configuración.
-
-**Probar otras fechas:** en Configuración → Herramientas de la demo puedes simular la fecha de hoy. Por ejemplo, al poner 01/11 se generan las cuotas de noviembre y el reporte de cierre de octubre, como lo harán las tareas automáticas. Ahí también está **Reiniciar datos de ejemplo**, que restaura los usuarios de esta tabla.
+Las cuotas del mes, el saldo a favor y el reporte de cierre se generan automáticamente cuando un administrador abre la app. Los números de recibo se asignan en una transacción de Firestore, así que nunca se repiten aunque cobren dos administradores a la vez.
 
 ## Estructura
 
 ```
-src/lib/types.ts                modelo de datos (equivale a las colecciones de Firestore)
-src/lib/store.ts                almacenamiento y sesión: lo único que cambia al conectar Firebase
+src/firebase-config.ts          configuración web del proyecto de Firebase
+src/lib/firebase.ts             conexión a Firebase (y a los emuladores en modo de pruebas)
+src/lib/store.ts                sincronización con Firestore, sesión, pagos y configuración inicial
+src/lib/types.ts                modelo de datos (una colección de Firestore por lista)
 src/lib/billing.ts              cuotas, aplicación de pagos, cola de avisos, códigos de visita
 src/lib/reports.ts              cálculos de reportes
 src/lib/pdf.ts                  recibos, estados de cuenta y reportes en PDF y Excel (CSV)
 src/lib/whatsapp.ts             mensajes y enlaces de WhatsApp
-src/lib/seed.ts                 datos y usuarios de ejemplo, textos de los mensajes
+src/lib/seed.ts                 datos de ejemplo y textos de los mensajes
 src/components/RequireRole.tsx  protección de rutas por rol
 src/pages/                      pantallas por tipo de usuario
+firestore.rules                 reglas de seguridad del servidor
+tests/rules.test.mjs            pruebas de las reglas
 ```
-
-## Siguiente fase: Firebase (plan Blaze, uso dentro de la capa gratuita)
-
-- Firebase Auth con correo y contraseña. El rol se guarda en la cuenta (*custom claims*) y el administrador crea las cuentas desde la app.
-- Firestore en lugar de localStorage, con reglas en el servidor que repiten la protección por rol: un residente no puede leer otra casa y un vigilante solo ve visitas.
-- Cloud Functions programadas: cuotas el día 1, cola de avisos diaria y reporte de cierre mensual. También el registro de pagos en el servidor, para que el número de recibo nunca se repita.
-- Firebase Hosting para publicar la app con su propio enlace.

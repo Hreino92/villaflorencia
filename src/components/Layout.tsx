@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { logout, useDB, useSession } from '../lib/store';
+import { clearSyncError, logout, useDB, useSession, useSyncError } from '../lib/store';
 import { fmtDate } from '../lib/dates';
 import { houseLabel } from '../lib/billing';
+import { usingEmulators } from '../lib/firebase';
 
 const NAV = {
   admin: [
@@ -26,11 +27,17 @@ const ROLE_LABEL = { admin: 'Administración', residente: 'Residente', vigilante
 export default function Layout() {
   const db = useDB();
   const session = useSession()!;
+  const syncError = useSyncError();
   const [open, setOpen] = useState(false);
   const house = session.houseId ? db.houses.find((h) => h.id === session.houseId) : null;
 
   return (
     <div className="min-h-screen">
+      {usingEmulators && (
+        <div className="bg-sky-600 px-4 py-1 text-center text-xs font-semibold text-white">
+          Modo de pruebas local: los datos están en los emuladores de Firebase de esta computadora
+        </div>
+      )}
       {db.config.simulatedToday && (
         <div className="bg-amber-400 px-4 py-1 text-center text-xs font-semibold text-amber-950">
           Modo demo: fecha simulada {fmtDate(db.config.simulatedToday)}
@@ -69,6 +76,12 @@ export default function Layout() {
           </button>
         </nav>
       </header>
+      {syncError && (
+        <div className="bg-red-600 px-4 py-2 text-center text-sm text-white">
+          {syncError}{' '}
+          <button className="ml-2 underline" onClick={clearSyncError}>Cerrar</button>
+        </div>
+      )}
       <main className="mx-auto max-w-6xl px-4 py-6">
         <Outlet />
       </main>

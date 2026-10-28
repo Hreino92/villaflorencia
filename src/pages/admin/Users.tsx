@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { update, useDB, useSession } from '../../lib/store';
+import { createAccount, resetPassword, update, useDB, useSession } from '../../lib/store';
 import { houseLabel } from '../../lib/billing';
 import type { DB, Relation, Role, User } from '../../lib/types';
 import { Empty, Field, Modal, PageTitle } from '../../components/ui';
@@ -30,7 +30,9 @@ export default function Users() {
   }
 
   function remove(u: User) {
-    if (confirm(`¿Eliminar la cuenta de ${u.name}? Ya no podrá entrar a la app.`)) update((d) => ({ ...d, users: d.users.filter((x) => x.id !== u.id) }));
+    // Se borra el perfil (y con él todo acceso). El correo queda registrado en Firebase Auth:
+    // para volver a darle acceso con el mismo correo, mejor usa "Desactivar" en lugar de eliminar.
+    if (confirm(`¿Quitar el acceso de ${u.name}? Ya no podrá entrar a la app.`)) update((d) => ({ ...d, users: d.users.filter((x) => x.id !== u.id) }));
   }
 
   const isLastAdmin = (u: User) => u.role === 'admin' && u.active && activeAdmins(db) === 1;
@@ -41,7 +43,7 @@ export default function Users() {
         title="Usuarios"
         subtitle={`${db.users.length} cuentas · ${db.users.filter((u) => u.active).length} activas`}
         actions={
-          <button className="btn btn-primary" onClick={() => setEditing({ id: '', name: '', email: '', password: '', role: 'residente', active: true })}>
+          <button className="btn btn-primary" onClick={() => setEditing({ id: '', name: '', email: '', role: 'residente', active: true })}>
             Crear usuario
           </button>
         }
@@ -95,7 +97,16 @@ function UserForm({ user, onClose }: { user: User; onClose: () => void }) {
   const [u, setU] = useState<User>(user);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+  const [busy, setBusy] = useState(false);
   const house = db.houses.find((h) => h.id === u.houseId);
+
+  async function sendReset() {
+    setError('');
+    const err = await resetPassword(u.email);
+    if (err) setError(err);
+    else setInfo(`Se envió a ${u.email} un enlace para crear una nueva contraseña.`);
+  }
 
   // Rellena nombre y correo con los datos registrados en la casa.
   function fillFromHouse(houseId: string | undefined, relation: Relation | undefined) {
@@ -104,25 +115,32 @@ function UserForm({ user, onClose }: { user: User; onClose: () => void }) {
     setU((prev) => ({ ...prev, houseId, relation, ...(p && isNew ? { name: p.name, email: p.email } : {}) }));
   }
 
-  function save(e: React.FormEvent) {
+  async function save(e: React.FormEvent) {
     e.preventDefault();
     const email = u.email.trim().toLowerCase();
     if (db.users.some((x) => x.id !== u.id && x.email.toLowerCase() === email)) return setError('Ya existe un usuario con ese correo.');
-    if ((isNew || password) && password.length < 8) return setError('La contraseña debe tener al menos 8 caracteres.');
+    if (isNew && password.length < 8) return setError('La contraseña debe tener al menos 8 caracteres.');
     if (u.role === 'residente' && (!u.houseId || !u.relation)) return setError('Selecciona la casa y si es propietario o inquilino.');
     if (u.role === 'residente' && u.relation === 'tenant' && !house?.tenant) return setError('Esa casa no tiene inquilino registrado. Agrégalo primero en Casas.');
     if (self && u.role !== 'admin') return setError('No puedes quitarte el rol de administrador a ti mismo.');
 
-    const saved: User = {
-      ...u,
-      email,
+    const profile = {
       name: u.name.trim(),
-      password: password || u.password,
+      role: u.role,
       houseId: u.role === 'residente' ? u.houseId : undefined,
       relation: u.role === 'residente' ? u.relation : undefined,
-      id: u.id || `u-${Date.now()}`,
+      active: u.active,
     };
-    update((d) => ({ ...d, users: isNew ? [...d.users, saved] : d.users.map((x) => (x.id === saved.id ? saved : x)) }));
+    if (isNew) {
+      setBusy(true);
+      const err = await createAccount({ ...profile, email, password });
+      setBusy(false);
+      if (err) return setError(err);
+    } else {
+      // Firestore no guarda campos undefined: se reemplaza el perfil completo.
+      const saved: User = { id: u.id, email: u.email, ...profile };
+      update((d) => ({ ...d, users: d.users.map((x) => (x.id === saved.id ? saved : x)) }));
+    }
     onClose();
   }
 
@@ -158,10 +176,21 @@ function UserForm({ user, onClose }: { user: User; onClose: () => void }) {
         )}
 
         <Field label="Nombre completo"><input className="input" value={u.name} onChange={(e) => setU({ ...u, name: e.target.value })} required /></Field>
-        <Field label="Correo (usuario para entrar)"><input className="input" type="email" value={u.email} onChange={(e) => setU({ ...u, email: e.target.value })} required /></Field>
-        <Field label={isNew ? 'Contraseña (mínimo 8 caracteres)' : 'Nueva contraseña (déjalo vacío para no cambiarla)'}>
-          <input className="input" type="text" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required={isNew} />
+        <Field label={isNew ? 'Correo (usuario para entrar)' : 'Correo (no se puede cambiar)'}>
+          <input className="input" type="email" value={u.email} onChange={(e) => setU({ ...u, email: e.target.value })} disabled={!isNew} required />
         </Field>
+        {isNew ? (
+          <Field label="Contraseña inicial (mínimo 8 caracteres)">
+            <input className="input" type="text" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required />
+            <span className="mt-1 block text-xs text-slate-500">Compártela con la persona; puede cambiarla con "Olvidé mi contraseña" en el login.</span>
+          </Field>
+        ) : (
+          <div className="rounded-lg bg-slate-50 p-3 text-sm">
+            <p className="mb-2 text-slate-600">La contraseña solo la puede cambiar la persona. Envíale un enlace a su correo:</p>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={sendReset}>Enviar enlace para cambiar contraseña</button>
+            {info && <p className="mt-2 text-emerald-700">{info}</p>}
+          </div>
+        )}
         {!self && (
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={u.active} onChange={(e) => setU({ ...u, active: e.target.checked })} /> Cuenta activa (puede entrar a la app)
@@ -170,7 +199,7 @@ function UserForm({ user, onClose }: { user: User; onClose: () => void }) {
         {error && <p className="rounded-md bg-red-50 p-2 text-sm text-red-700">{error}</p>}
         <div className="flex justify-end gap-2">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary">{isNew ? 'Crear usuario' : 'Guardar'}</button>
+          <button className="btn btn-primary" disabled={busy}>{busy ? 'Creando…' : isNew ? 'Crear usuario' : 'Guardar'}</button>
         </div>
       </form>
     </Modal>

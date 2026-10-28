@@ -1,0 +1,90 @@
+rules_version = '2';
+
+// Reglas de seguridad de Villa Florencia.
+// El rol de cada persona está en users/{uid}. Nadie puede leer ni escribir fuera de lo que su rol permite,
+// aunque modifique la app en su navegador.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function profilePath() { return /databases/$(database)/documents/users/$(request.auth.uid); }
+    function me() { return get(profilePath()).data; }
+    function active() { return signedIn() && exists(profilePath()) && me().active == true; }
+    function isAdmin() { return active() && me().role == 'admin'; }
+    function isGuard() { return active() && me().role == 'vigilante'; }
+    function isResident() { return active() && me().role == 'residente'; }
+    function myHouse() { return me().houseId; }
+    function setupDone() { return exists(/databases/$(database)/documents/config/general); }
+
+    // Configuración: pública para lectura (nombre de la residencial en el login).
+    // Se crea una sola vez, junto con el perfil del primer administrador.
+    match /config/{docId} {
+      allow read: if docId == 'general';
+      allow create: if docId == 'general' && !setupDone()
+        && getAfter(profilePath()).data.role == 'admin';
+      allow update: if docId == 'general' && isAdmin();
+    }
+
+    // Perfiles y roles. Cada quien lee el suyo; solo el administrador los gestiona.
+    // Excepción: el primer administrador crea su propio perfil durante la configuración inicial.
+    match /users/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create: if isAdmin()
+        || (signedIn() && request.auth.uid == uid && !setupDone()
+            && request.resource.data.role == 'admin' && request.resource.data.active == true);
+      allow update, delete: if isAdmin();
+    }
+
+    match /houses/{houseId} {
+      allow read: if isAdmin() || isGuard() || (isResident() && myHouse() == houseId);
+      allow write: if isAdmin();
+    }
+
+    match /charges/{id} {
+      allow read: if isAdmin() || (isResident() && resource.data.houseId == myHouse());
+      allow write: if isAdmin();
+    }
+
+    match /payments/{id} {
+      allow read: if isAdmin() || (isResident() && resource.data.houseId == myHouse());
+      allow write: if isAdmin();
+    }
+
+    match /credits/{houseId} {
+      allow read: if isAdmin() || (isResident() && myHouse() == houseId);
+      allow write: if isAdmin();
+    }
+
+    match /notifications/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    match /reports/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    // Visitas: el residente crea y anula las de su casa (si la casa se lo permite),
+    // el vigilante solo marca la entrada y el administrador puede todo.
+    match /visits/{code} {
+      function house() { return get(/databases/$(database)/documents/houses/$(myHouse())).data; }
+      function mayCreateVisits() {
+        return house().visitorCodeBy == 'both'
+          || house().visitorCodeBy == me().relation
+          || (house().tenant == null && me().relation == 'owner');
+      }
+
+      allow read: if isAdmin() || isGuard() || (isResident() && resource.data.houseId == myHouse());
+      allow create: if isAdmin()
+        || (isResident() && request.resource.data.houseId == myHouse()
+            && request.resource.data.code == code
+            && request.resource.data.enteredAt == null
+            && mayCreateVisits());
+      allow update: if isAdmin()
+        || (isGuard() && resource.data.enteredAt == null
+            && request.resource.data.enteredAt is string
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['enteredAt', 'guardName']));
+      allow delete: if isAdmin()
+        || (isResident() && resource.data.houseId == myHouse() && resource.data.enteredAt == null);
+    }
+  }
+}

@@ -1,23 +1,33 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { login, useDB, useSession } from '../lib/store';
-import { HOME } from '../components/RequireRole';
+import { login, resetPassword, useAuthStatus, useDB, useSession, useSetupNeeded } from '../lib/store';
+import { HOME, Loading } from '../components/RequireRole';
 import { Field } from '../components/ui';
 
 export default function Login() {
   const db = useDB();
+  const status = useAuthStatus();
   const session = useSession();
+  const setupNeeded = useSetupNeeded();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+  const [busy, setBusy] = useState(false);
 
+  if (setupNeeded) return <Navigate to="/setup" replace />;
   if (session) return <Navigate to={HOME[session.role]} replace />;
+  if (status === 'loading' && !busy) return <Loading />;
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
-    const result = login(email, password);
+    setBusy(true);
+    setError('');
+    setInfo('');
+    const result = await login(email, password);
+    setBusy(false);
     if (typeof result === 'string') {
       setError(result);
       return;
@@ -25,6 +35,18 @@ export default function Login() {
     // Vuelve a la página que pedía, solo si pertenece a su rol.
     const from = (location.state as { from?: string } | null)?.from;
     navigate(from && from.startsWith(HOME[result.role]) ? from : HOME[result.role], { replace: true });
+  }
+
+  async function forgot() {
+    setError('');
+    setInfo('');
+    if (!email) {
+      setError('Escribe tu correo y vuelve a presionar "Olvidé mi contraseña".');
+      return;
+    }
+    const err = await resetPassword(email);
+    if (err) setError(err);
+    else setInfo('Si el correo está registrado, te llegará un enlace para crear una nueva contraseña.');
   }
 
   return (
@@ -41,8 +63,11 @@ export default function Login() {
           <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
         </Field>
         {error && <p className="rounded-md bg-red-50 p-2 text-sm text-red-700">{error}</p>}
-        <button className="btn btn-primary w-full">Entrar</button>
-        <p className="text-center text-xs text-slate-400">¿Olvidaste tu contraseña? Pídele a la administración que la restablezca.</p>
+        {info && <p className="rounded-md bg-emerald-50 p-2 text-sm text-emerald-800">{info}</p>}
+        <button className="btn btn-primary w-full" disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</button>
+        <button type="button" className="w-full text-center text-xs text-emerald-700 hover:underline" onClick={forgot}>
+          Olvidé mi contraseña
+        </button>
       </form>
     </div>
   );

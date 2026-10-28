@@ -1,131 +1,465 @@
-// Almacenamiento de la demo en el navegador (localStorage).
-// En la versión con Firebase, este archivo es lo único que se reemplaza por lecturas/escrituras a Firestore.
+// Datos de la app sobre Firebase (Auth + Firestore).
+//
+// Las pantallas trabajan con un objeto DB en memoria (useDB) y lo cambian con update(fn).
+// Este archivo mantiene ese objeto sincronizado con Firestore:
+//   - lectura: listeners en tiempo real, distintos según el rol (cada quien solo descarga lo suyo);
+//   - escritura: update() compara el DB anterior con el nuevo y escribe solo los documentos que cambiaron.
+// Las reglas de firestore.rules validan en el servidor que cada rol solo lea y escriba lo permitido.
 import { useSyncExternalStore } from 'react';
-import type { DB, Session } from './types';
-import { createSeed } from './seed';
-import { runAutomations } from './billing';
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
+} from 'firebase/auth';
+import {
+  DocumentReference,
+  collection,
+  doc,
+  getDoc,
+  onSnapshot,
+  query,
+  runTransaction,
+  where,
+  writeBatch,
+  type Query,
+  type Unsubscribe,
+} from 'firebase/firestore';
+import type { Charge, Config, DB, Payment, Relation, Role, Session, User } from './types';
+import { auth, creatorAuth, fs } from './firebase';
+import { applyPayment, runAutomations } from './billing';
+import { defaultConfig, createSeed } from './seed';
 import { localISODate } from './dates';
 
-const DB_KEY = 'villaflorencia-db-v2';
-const SESSION_KEY = 'villaflorencia-session-v2';
+// ---------- Estado en memoria ----------
 
-function load(): DB {
-  try {
-    const raw = localStorage.getItem(DB_KEY);
-    if (raw) return JSON.parse(raw) as DB;
-  } catch {
-    /* datos dañados o almacenamiento bloqueado: se vuelve a la demo */
-  }
-  return createSeed();
+export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
+
+interface State {
+  db: DB;
+  status: AuthStatus;
+  user: User | null;
+  setupNeeded: boolean | null; // null = todavía no se sabe
+  error: string | null;
 }
 
-let db: DB = load();
-db = runAutomations(db, todayOf(db));
-persist();
+function emptyDB(config: Config = defaultConfig('Residencial', localISODate())): DB {
+  return { version: 1, config, houses: [], charges: [], payments: [], credits: {}, notifications: [], visits: [], reports: [], users: [] };
+}
 
+let state: State = { db: emptyDB(), status: 'loading', user: null, setupNeeded: null, error: null };
 const listeners = new Set<() => void>();
 
-function persist() {
-  try {
-    localStorage.setItem(DB_KEY, JSON.stringify(db));
-  } catch {
-    /* sin almacenamiento: la demo funciona solo en memoria */
-  }
-}
-
-function emit() {
-  persist();
+function set(patch: Partial<State>) {
+  state = { ...state, ...patch };
   listeners.forEach((l) => l());
 }
 
-function subscribe(l: () => void) {
-  listeners.add(l);
-  return () => listeners.delete(l);
+function useStore<T>(pick: (s: State) => T): T {
+  return useSyncExternalStore(
+    (l) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+    () => pick(state),
+  );
 }
+
+export const useDB = () => useStore((s) => s.db);
+export const useAuthStatus = () => useStore((s) => s.status);
+export const useSetupNeeded = () => useStore((s) => s.setupNeeded);
+export const useSyncError = () => useStore((s) => s.error);
+export const clearSyncError = () => set({ error: null });
+export const getDB = () => state.db;
 
 export function todayOf(d: DB): string {
   return d.config.simulatedToday ?? localISODate();
-}
-
-export function getDB(): DB {
-  return db;
-}
-
-export function useDB(): DB {
-  return useSyncExternalStore(subscribe, () => db);
 }
 
 export function useToday(): string {
   return todayOf(useDB());
 }
 
-/** Aplica un cambio y vuelve a correr las tareas automáticas (cargos del mes, reportes). */
-export function update(fn: (d: DB) => DB) {
-  const next = fn(db);
-  db = runAutomations(next, todayOf(next));
-  emit();
-}
-
-export function resetDemo() {
-  db = createSeed();
-  emit();
-}
-
-// ---- Sesión (en producción: Firebase Auth con correo y contraseña) ----
-
-// Solo se guarda el id del usuario; rol, nombre y casa se leen de su cuenta,
-// así un cambio de rol o una desactivación aplica de inmediato.
-let sessionUserId: string | null = (() => {
-  try {
-    return localStorage.getItem(SESSION_KEY);
-  } catch {
-    return null;
-  }
-})();
-const sessionListeners = new Set<() => void>();
-
-function sessionFor(d: DB, userId: string | null): Session | null {
-  const u = userId ? d.users.find((x) => x.id === userId) : undefined;
-  if (!u || !u.active) return null;
-  if (u.role === 'residente' && !d.houses.some((h) => h.id === u.houseId)) return null;
-  return { userId: u.id, email: u.email, role: u.role, name: u.name, houseId: u.houseId, relation: u.relation };
-}
-
+const sessionCache = new WeakMap<User, Session>();
 export function useSession(): Session | null {
-  const d = useDB();
-  const id = useSyncExternalStore(
-    (l) => {
-      sessionListeners.add(l);
-      return () => sessionListeners.delete(l);
-    },
-    () => sessionUserId,
-  );
-  return sessionFor(d, id);
-}
-
-function setSessionUser(id: string | null) {
-  sessionUserId = id;
-  try {
-    if (id) localStorage.setItem(SESSION_KEY, id);
-    else localStorage.removeItem(SESSION_KEY);
-  } catch {
-    /* ignorado */
+  const user = useStore((s) => s.user);
+  if (!user) return null;
+  let s = sessionCache.get(user);
+  if (!s) {
+    s = { userId: user.id, email: user.email, role: user.role, name: user.name, houseId: user.houseId, relation: user.relation };
+    sessionCache.set(user, s);
   }
-  sessionListeners.forEach((l) => l());
-}
-
-/** Inicia sesión con correo y contraseña. Devuelve la sesión o un mensaje de error. */
-export function login(email: string, password: string): Session | string {
-  const mail = email.trim().toLowerCase();
-  const u = db.users.find((x) => x.email.toLowerCase() === mail);
-  if (!u || u.password !== password) return 'Correo o contraseña incorrectos.';
-  if (!u.active) return 'Esta cuenta está desactivada. Contacta a la administración.';
-  const s = sessionFor(db, u.id);
-  if (!s) return 'La cuenta no tiene una casa asignada. Contacta a la administración.';
-  setSessionUser(u.id);
   return s;
 }
 
+// ---------- Escritura: diferencias entre el DB anterior y el nuevo ----------
+
+// Colección de Firestore → campo que sirve de id del documento.
+const KEYS = {
+  houses: 'id',
+  charges: 'id',
+  payments: 'id',
+  notifications: 'key',
+  visits: 'code',
+  reports: 'period',
+  users: 'id',
+} as const;
+type ListName = keyof typeof KEYS;
+
+type Op = { ref: DocumentReference; data: object | null };
+
+function stable(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stable).join(',')}]`;
+  if (v && typeof v === 'object') {
+    return `{${Object.keys(v)
+      .filter((k) => (v as Record<string, unknown>)[k] !== undefined)
+      .sort()
+      .map((k) => `${k}:${stable((v as Record<string, unknown>)[k])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(v);
+}
+
+function diff(prev: DB, next: DB): Op[] {
+  const ops: Op[] = [];
+  if (prev.config !== next.config && stable(prev.config) !== stable(next.config)) {
+    ops.push({ ref: doc(fs, 'config', 'general'), data: next.config });
+  }
+  for (const name of Object.keys(KEYS) as ListName[]) {
+    if (prev[name] === next[name]) continue;
+    const key = KEYS[name];
+    const id = (x: object) => String((x as Record<string, unknown>)[key]);
+    const before = new Map((prev[name] as object[]).map((x) => [id(x), x]));
+    const after = new Map((next[name] as object[]).map((x) => [id(x), x]));
+    for (const [k, v] of after) {
+      const old = before.get(k);
+      if (old !== v && (!old || stable(old) !== stable(v))) ops.push({ ref: doc(fs, name, k), data: v });
+    }
+    for (const k of before.keys()) if (!after.has(k)) ops.push({ ref: doc(fs, name, k), data: null });
+  }
+  if (prev.credits !== next.credits) {
+    for (const k of new Set([...Object.keys(prev.credits), ...Object.keys(next.credits)])) {
+      if (prev.credits[k] === next.credits[k]) continue;
+      ops.push({ ref: doc(fs, 'credits', k), data: next.credits[k] ? { amount: next.credits[k] } : null });
+    }
+  }
+  return ops;
+}
+
+async function commit(ops: Op[]) {
+  // Un lote de Firestore admite 500 operaciones.
+  for (let i = 0; i < ops.length; i += 450) {
+    const batch = writeBatch(fs);
+    for (const op of ops.slice(i, i + 450)) {
+      if (op.data) batch.set(op.ref, op.data);
+      else batch.delete(op.ref);
+    }
+    await batch.commit();
+  }
+}
+
+function reportError(e: unknown) {
+  console.error(e);
+  const code = (e as { code?: string }).code ?? '';
+  set({
+    error:
+      code === 'permission-denied'
+        ? 'No tienes permiso para hacer ese cambio. Se descartó.'
+        : 'No se pudo guardar el último cambio. Revisa tu conexión a internet.',
+  });
+}
+
+const isAdmin = () => state.user?.role === 'admin' && state.user.active;
+
+/** Tareas automáticas (cuotas del mes, saldo a favor, reportes): las ejecuta la sesión del administrador. */
+function withAutomations(d: DB): DB {
+  return isAdmin() && dataReady && !loadFailed ? runAutomations(d, todayOf(d)) : d;
+}
+
+/** Aplica un cambio en pantalla de inmediato y lo guarda en Firestore. */
+export function update(fn: (d: DB) => DB) {
+  const prev = state.db;
+  const next = withAutomations(fn(prev));
+  if (next === prev) return;
+  set({ db: next });
+  commit(diff(prev, next)).catch(reportError);
+}
+
+// ---------- Lectura: listeners según el rol ----------
+
+let dataUnsubs: Unsubscribe[] = [];
+let userUnsub: Unsubscribe | null = null;
+let subscribedFor = '';
+let pending = new Set<string>();
+let dataReady = false;
+let loadFailed = false; // con datos incompletos no se generan cuotas (podría sobrescribir pagos)
+
+function stopData() {
+  dataUnsubs.forEach((u) => u());
+  dataUnsubs = [];
+  subscribedFor = '';
+  dataReady = false;
+  loadFailed = false;
+}
+
+function markLoaded(name: string) {
+  if (!pending.delete(name) || pending.size > 0 || dataReady) return;
+  dataReady = true;
+  // Primera carga completa: el administrador genera lo que falte (cuotas del mes, reportes).
+  if (isAdmin()) update((d) => d);
+  if (state.user) set({ status: 'signedIn' });
+}
+
+/** Un listener que falla deja de bloquear la carga y muestra el aviso de error. */
+function failed(name: string) {
+  return (e: unknown) => {
+    loadFailed = true;
+    reportError(e);
+    markLoaded(name);
+  };
+}
+
+function listenList(name: ListName, q: Query) {
+  pending.add(name);
+  dataUnsubs.push(
+    onSnapshot(
+      q,
+      (snap) => {
+        set({ db: { ...state.db, [name]: snap.docs.map((d) => d.data()) } });
+        markLoaded(name);
+      },
+      failed(name),
+    ),
+  );
+}
+
+function listenDocAsList(name: ListName, ref: DocumentReference) {
+  pending.add(name);
+  dataUnsubs.push(
+    onSnapshot(
+      ref,
+      (snap) => {
+        set({ db: { ...state.db, [name]: snap.exists() ? [snap.data()] : [] } });
+        markLoaded(name);
+      },
+      failed(name),
+    ),
+  );
+}
+
+function listenCredits(q: Query | DocumentReference) {
+  pending.add('credits');
+  const apply = (entries: [string, number][]) => {
+    set({ db: { ...state.db, credits: Object.fromEntries(entries.filter(([, v]) => v > 0)) } });
+    markLoaded('credits');
+  };
+  dataUnsubs.push(
+    q instanceof DocumentReference
+      ? onSnapshot(q, (s) => apply(s.exists() ? [[s.id, (s.data() as { amount: number }).amount]] : []), failed('credits'))
+      : onSnapshot(q, (s) => apply(s.docs.map((d) => [d.id, (d.data() as { amount: number }).amount])), failed('credits')),
+  );
+}
+
+function startData(user: User) {
+  const signature = `${user.id}|${user.role}|${user.houseId ?? ''}|${user.active}`;
+  if (signature === subscribedFor) return;
+  stopData();
+  subscribedFor = signature;
+  pending = new Set();
+  set({ db: emptyDB(state.db.config), status: 'loading' });
+  const col = (n: string) => collection(fs, n);
+
+  if (user.role === 'admin') {
+    for (const name of Object.keys(KEYS) as ListName[]) listenList(name, col(name));
+    listenCredits(col('credits'));
+  } else if (user.role === 'vigilante') {
+    listenList('houses', col('houses'));
+    listenList('visits', query(col('visits'), where('date', '==', localISODate())));
+  } else if (user.houseId) {
+    const h = user.houseId;
+    listenDocAsList('houses', doc(fs, 'houses', h));
+    listenList('charges', query(col('charges'), where('houseId', '==', h)));
+    listenList('payments', query(col('payments'), where('houseId', '==', h)));
+    listenList('visits', query(col('visits'), where('houseId', '==', h)));
+    listenCredits(doc(fs, 'credits', h));
+  }
+  if (pending.size === 0) {
+    dataReady = true;
+    set({ status: 'signedIn' });
+  }
+}
+
+// La configuración es pública (nombre de la residencial en el login) y dice si falta la configuración inicial.
+onSnapshot(
+  doc(fs, 'config', 'general'),
+  (snap) => {
+    const config = snap.exists() ? (snap.data() as Config) : state.db.config;
+    set({ setupNeeded: !snap.exists(), db: { ...state.db, config } });
+  },
+  (e) => {
+    reportError(e);
+    set({ setupNeeded: false });
+  },
+);
+
+onAuthStateChanged(auth, (fbUser) => {
+  userUnsub?.();
+  userUnsub = null;
+  stopData();
+  if (!fbUser) {
+    set({ user: null, status: 'signedOut', db: emptyDB(state.db.config) });
+    return;
+  }
+  set({ status: 'loading' });
+  userUnsub = onSnapshot(
+    doc(fs, 'users', fbUser.uid),
+    { includeMetadataChanges: true }, // para enterarse cuando el servidor confirma el perfil
+    (snap) => {
+      // Se espera a que el servidor confirme el perfil: las reglas lo leen del servidor,
+      // y abrir los listeners antes (p. ej. justo al crear la residencial) sería rechazado.
+      if (snap.metadata.hasPendingWrites) return;
+      const user = snap.exists() ? (snap.data() as User) : null;
+      if (!user || !user.active || (user.role === 'residente' && !user.houseId)) {
+        // Sin perfil (o desactivado): no ve nada. Al crear la residencial, el perfil llega un instante después.
+        stopData();
+        set({ user: null, status: 'signedOut', db: emptyDB(state.db.config) });
+        return;
+      }
+      set({ user });
+      startData(user);
+    },
+    (e) => {
+      reportError(e);
+      set({ user: null, status: 'signedOut' });
+    },
+  );
+});
+
+// ---------- Autenticación ----------
+
+function authMessage(e: unknown): string {
+  const code = (e as { code?: string }).code ?? '';
+  if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found' || code === 'auth/invalid-email')
+    return 'Correo o contraseña incorrectos.';
+  if (code === 'auth/too-many-requests') return 'Demasiados intentos. Espera unos minutos o restablece tu contraseña.';
+  if (code === 'auth/email-already-in-use') return 'Ya existe una cuenta con ese correo.';
+  if (code === 'auth/weak-password') return 'La contraseña debe tener al menos 8 caracteres.';
+  if (code === 'auth/network-request-failed') return 'Sin conexión a internet.';
+  console.error(e);
+  return 'Ocurrió un error. Intenta de nuevo.';
+}
+
+/** Inicia sesión. Devuelve el rol (para llevar al usuario a su pantalla) o un mensaje de error. */
+export async function login(email: string, password: string): Promise<{ role: Role } | string> {
+  try {
+    const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+    const snap = await getDoc(doc(fs, 'users', cred.user.uid));
+    const user = snap.exists() ? (snap.data() as User) : null;
+    if (!user) {
+      await signOut(auth);
+      return 'Tu cuenta no tiene acceso a la app. Contacta a la administración.';
+    }
+    if (!user.active) {
+      await signOut(auth);
+      return 'Esta cuenta está desactivada. Contacta a la administración.';
+    }
+    return { role: user.role };
+  } catch (e) {
+    return authMessage(e);
+  }
+}
+
 export function logout() {
-  setSessionUser(null);
+  void signOut(auth);
+}
+
+export async function resetPassword(email: string): Promise<string | null> {
+  try {
+    await sendPasswordResetEmail(auth, email.trim());
+    return null;
+  } catch (e) {
+    return authMessage(e);
+  }
+}
+
+// ---------- Operaciones especiales ----------
+
+/** Crea la cuenta en Firebase Auth (sin cerrar la sesión del administrador) y su perfil con el rol. */
+export async function createAccount(input: {
+  name: string;
+  email: string;
+  password: string;
+  role: Role;
+  houseId?: string;
+  relation?: Relation;
+  active: boolean;
+}): Promise<string | null> {
+  try {
+    const creator = creatorAuth();
+    const cred = await createUserWithEmailAndPassword(creator, input.email.trim(), input.password);
+    await signOut(creator);
+    const { password: _omit, ...profile } = input;
+    void _omit;
+    update((d) => ({ ...d, users: [...d.users, { ...profile, id: cred.user.uid, email: input.email.trim().toLowerCase() }] }));
+    return null;
+  } catch (e) {
+    return authMessage(e);
+  }
+}
+
+/**
+ * Registra un pago en una transacción: el número de recibo se toma del servidor,
+ * así dos administradores cobrando al mismo tiempo nunca obtienen el mismo número.
+ */
+export async function registerPayment(input: Parameters<typeof applyPayment>[1]): Promise<Payment> {
+  const chargeIds = state.db.charges.filter((c) => c.houseId === input.houseId).map((c) => c.id);
+  return runTransaction(fs, async (tx) => {
+    const cfgRef = doc(fs, 'config', 'general');
+    const creditRef = doc(fs, 'credits', input.houseId);
+    const cfg = await tx.get(cfgRef);
+    const charges = (await Promise.all(chargeIds.map((id) => tx.get(doc(fs, 'charges', id)))))
+      .filter((s) => s.exists())
+      .map((s) => s.data() as Charge);
+    const credit = await tx.get(creditRef);
+    const before: DB = {
+      ...emptyDB(cfg.data() as Config),
+      charges,
+      credits: credit.exists() ? { [input.houseId]: (credit.data() as { amount: number }).amount } : {},
+    };
+    const { db: after, payment } = applyPayment(before, input);
+    tx.update(cfgRef, { nextReceiptNo: after.config.nextReceiptNo });
+    for (const c of after.charges) {
+      if (c !== charges.find((x) => x.id === c.id)) tx.set(doc(fs, 'charges', c.id), c);
+    }
+    tx.set(doc(fs, 'payments', payment.id), payment);
+    if (after.credits[input.houseId] !== before.credits[input.houseId]) tx.set(creditRef, { amount: after.credits[input.houseId] ?? 0 });
+    return payment;
+  });
+}
+
+/** Configuración inicial: crea la cuenta del primer administrador y la residencial. */
+export async function setupResidential(input: {
+  residential: string;
+  adminName: string;
+  email: string;
+  password: string;
+  withDemo: boolean;
+}): Promise<string | null> {
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, input.email.trim(), input.password);
+    const admin: User = { id: cred.user.uid, name: input.adminName.trim(), email: input.email.trim().toLowerCase(), role: 'admin', active: true };
+    const config = defaultConfig(input.residential.trim(), localISODate());
+    const batch = writeBatch(fs);
+    batch.set(doc(fs, 'users', admin.id), admin);
+    batch.set(doc(fs, 'config', 'general'), config);
+    await batch.commit();
+    if (input.withDemo) {
+      const seed = createSeed(config);
+      await commit(diff(emptyDB(config), { ...seed, users: [] }));
+    }
+    return null;
+  } catch (e) {
+    return authMessage(e);
+  }
 }
