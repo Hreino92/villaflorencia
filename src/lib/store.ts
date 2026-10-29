@@ -30,7 +30,7 @@ import type { Charge, Config, DB, House, Payment, Relation, Role, Session, User 
 import { auth, creatorAuth, fs } from './firebase';
 import { applyPayment, compareHouses, runAutomations } from './billing';
 import { defaultConfig, createSeed } from './seed';
-import { localISODate } from './dates';
+import { addDays, localISODate } from './dates';
 
 // ---------- Estado en memoria ----------
 
@@ -45,7 +45,7 @@ interface State {
 }
 
 function emptyDB(config: Config = defaultConfig('Residencial', localISODate())): DB {
-  return { version: 1, config, houses: [], charges: [], payments: [], credits: {}, notifications: [], visits: [], reports: [], users: [], expenses: [] };
+  return { config, houses: [], charges: [], payments: [], credits: {}, notifications: [], visits: [], users: [], expenses: [] };
 }
 
 let state: State = { db: emptyDB(), status: 'loading', user: null, setupNeeded: null, error: null };
@@ -102,7 +102,6 @@ const KEYS = {
   payments: 'id',
   notifications: 'key',
   visits: 'code',
-  reports: 'period',
   users: 'id',
   expenses: 'id',
 } as const;
@@ -274,12 +273,19 @@ function startData(user: User) {
   set({ db: emptyDB(state.db.config), status: 'loading' });
   const col = (n: string) => collection(fs, n);
 
+  const today = localISODate();
   if (user.role === 'admin') {
-    for (const name of Object.keys(KEYS) as ListName[]) listenList(name, col(name));
+    // Avisos y visitas crecen sin límite y ninguna pantalla usa los viejos: solo los recientes,
+    // para no gastar el límite diario de lecturas del plan gratuito.
+    const recent: Partial<Record<ListName, Query>> = {
+      notifications: query(col('notifications'), where('sentAt', '>=', `${today.slice(0, 8)}01`)),
+      visits: query(col('visits'), where('date', '>=', addDays(today, -30))),
+    };
+    for (const name of Object.keys(KEYS) as ListName[]) listenList(name, recent[name] ?? col(name));
     listenCredits(col('credits'));
   } else if (user.role === 'vigilante') {
-    listenList('houses', col('houses'));
-    listenList('visits', query(col('visits'), where('date', '==', localISODate())));
+    // ">=" y no "==": la tablet de la caseta queda abierta pasada la medianoche y debe ver las visitas del día nuevo.
+    listenList('visits', query(col('visits'), where('date', '>=', today)));
   } else if (user.houseId) {
     const h = user.houseId;
     listenDocAsList('houses', doc(fs, 'houses', h));
@@ -474,7 +480,7 @@ export function parseHouseImport(text: string): HouseImport | string {
 }
 
 /**
- * Reemplaza casas, cuotas, pagos, visitas, avisos, reportes y gastos por los del archivo.
+ * Reemplaza casas, cuotas, pagos, visitas, avisos y gastos por los del archivo.
  * Conserva administradores, vigilantes y la configuración (el cobro automático empieza en startPeriod).
  */
 export async function importHouses(data: HouseImport): Promise<void> {
@@ -488,7 +494,6 @@ export async function importHouses(data: HouseImport): Promise<void> {
     payments: [],
     notifications: [],
     visits: [],
-    reports: [],
     expenses: [],
     // Las cuentas de residentes apuntaban a las casas anteriores (una "A-1" de ejemplo daría acceso a la A-1 real):
     // se quitan todas. Administradores y vigilantes se quedan.

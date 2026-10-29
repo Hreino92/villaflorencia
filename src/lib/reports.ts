@@ -125,12 +125,15 @@ export interface HouseRangeRow {
 export function housesInRange(db: DB, from: string, to: string, today: string): HouseRangeRow[] {
   const periods = periodsBetween(from, to);
   return db.houses.map((house) => {
-    const monthly = new Map(db.charges.filter((c) => c.houseId === house.id && c.kind === 'monthly').map((c) => [c.period, c]));
+    const mine = db.charges.filter((c) => c.houseId === house.id);
     const cells = periods.map((period) => {
-      const c = monthly.get(period);
-      return c
-        ? { period, amount: c.amount, paid: c.paid, status: chargeStatus(c, today) }
-        : { period, amount: 0, paid: 0, status: 'sin cargo' as const };
+      // Todas las cuotas del mes: la mensual y las de saldo anterior (las importadas son de este tipo).
+      const cs = mine.filter((c) => c.period === period);
+      if (!cs.length) return { period, amount: 0, paid: 0, status: 'sin cargo' as const };
+      const amount = round2(cs.reduce((s, c) => s + c.amount, 0));
+      const paid = round2(cs.reduce((s, c) => s + c.paid, 0));
+      const dueDate = cs.map((c) => c.dueDate).sort()[0];
+      return { period, amount, paid, status: chargeStatus({ ...cs[0], amount, paid, dueDate }, today) };
     });
     const billed = round2(cells.reduce((s, c) => s + c.amount, 0));
     const paid = round2(cells.reduce((s, c) => s + c.paid, 0));

@@ -8,6 +8,7 @@
     "dev:local": "vite --mode emulators",
     "build": "vite build",
     "check": "tsc --noEmit",
+    "test": "node --test tests/billing.test.mjs",
     "preview": "vite preview",
     "emulators": "firebase emulators:start --project demo-villaflorencia",
     "test:rules": "firebase emulators:exec --only firestore --project demo-villaflorencia \"node --test tests/rules.test.mjs\"",

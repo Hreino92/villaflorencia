@@ -103,11 +103,6 @@ export interface Expense {
   createdAt: string;
 }
 
-export interface MonthlyReport {
-  period: string; // YYYY-MM del mes cerrado
-  generatedAt: string;
-}
-
 export interface Config {
   name: string;
   fee: number;
@@ -136,7 +131,6 @@ export interface User {
 }
 
 export interface DB {
-  version: number;
   config: Config;
   houses: House[];
   charges: Charge[];
@@ -144,7 +138,6 @@ export interface DB {
   credits: Record<string, number>; // saldo a favor por casa
   notifications: NotificationLog[];
   visits: Visit[];
-  reports: MonthlyReport[];
   users: User[];
   expenses: Expense[];
 }

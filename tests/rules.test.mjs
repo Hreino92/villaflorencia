@@ -91,6 +91,7 @@ test('el vigilante solo marca la entrada, una vez', async () => {
   await assertSucceeds(updateDoc(doc(db, 'visits/AAAAAA'), { enteredAt: '2026-10-27T09:00:00', guardName: 'Pedro' }));
   await assertFails(updateDoc(doc(db, 'visits/AAAAAA'), { enteredAt: '2026-10-27T10:00:00', guardName: 'Pedro' }));
   await assertFails(getDoc(doc(db, 'charges/A-1-2026-10')));
+  await assertFails(getDoc(doc(db, 'houses/A-1'))); // DUI y teléfonos de residentes
   await assertFails(deleteDoc(doc(db, 'visits/AAAAAA')));
 });
 

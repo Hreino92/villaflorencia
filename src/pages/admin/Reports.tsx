@@ -3,7 +3,6 @@ import { update, useDB, useSession, useToday } from '../../lib/store';
 import { houseLabel } from '../../lib/billing';
 import { addMonths, capitalize, fmtDate, localISODate, money, periodLabel, periodOf, round2 } from '../../lib/dates';
 import { financialSummary, housesInRange, moraList, periodsBetween, rangeLabel } from '../../lib/reports';
-import { downloadFile, financialPDF, housesPDF, moraPDF, openFile, statementPDF } from '../../lib/pdf';
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS, type Expense } from '../../lib/types';
 import { Empty, Field, Modal, PageTitle, Stat } from '../../components/ui';
 
@@ -33,19 +32,22 @@ export default function Reports() {
   }
 
   /** Genera un archivo (PDF o Excel) mostrando "Generando…" mientras tanto. */
-  async function run(key: string, make: () => File | Promise<File>, open = false) {
+  async function run(key: string, make: () => Promise<File>, open = false) {
     setBusy(key);
     try {
       const file = await make();
+      const { openFile, downloadFile } = await lib();
       if (open) openFile(file);
       else downloadFile(file);
     } finally {
       setBusy('');
     }
   }
+  // PDF y Excel son librerías pesadas: se cargan solo al generar un archivo.
+  const lib = () => import('../../lib/pdf');
   const excel = () => import('../../lib/excel');
 
-  function Buttons({ id, pdf, xlsx }: { id: string; pdf: () => File; xlsx: () => Promise<File> }) {
+  function Buttons({ id, pdf, xlsx }: { id: string; pdf: () => Promise<File>; xlsx: () => Promise<File> }) {
     return (
       <div className="flex gap-2">
         <button className="btn btn-secondary btn-sm" disabled={!!busy || !valid} onClick={() => run(`${id}-pdf`, pdf, true)}>
@@ -95,16 +97,16 @@ export default function Reports() {
 
       <div className="mb-6 grid gap-4 md:grid-cols-2">
         <ReportCard title="Informe financiero" text={`Ingresos contra gastos de ${valid ? rangeLabel(from, to) : 'el rango'}, con gráficos, gastos por categoría y el detalle de recibos y gastos.`}>
-          <Buttons id="fin" pdf={() => financialPDF(db, from, to)} xlsx={async () => (await excel()).financialXLSX(db, from, to)} />
+          <Buttons id="fin" pdf={async () => (await lib()).financialPDF(db, from, to)} xlsx={async () => (await excel()).financialXLSX(db, from, to)} />
         </ReportCard>
         <ReportCard
           title="Todas las casas"
           text={valid ? `Cuota de cada casa mes por mes (${rangeLabel(from, to)}): pagada, parcial, pendiente o en mora. ${houses.filter((h) => h.pending > 0).length} de ${houses.length} casas con saldo en el período.` : 'Estado de pago de cada casa mes por mes.'}
         >
-          <Buttons id="houses" pdf={() => housesPDF(db, from, to, today)} xlsx={async () => (await excel()).housesXLSX(db, from, to, today)} />
+          <Buttons id="houses" pdf={async () => (await lib()).housesPDF(db, from, to, today)} xlsx={async () => (await excel()).housesXLSX(db, from, to, today)} />
         </ReportCard>
         <ReportCard title="Casas en mora" text={`Situación al ${fmtDate(today)}: ${mora.length} casas, ${money(mora.reduce((t, r) => t + r.amount, 0))} vencido. No depende del rango.`}>
-          <Buttons id="mora" pdf={() => moraPDF(db, today)} xlsx={async () => (await excel()).moraXLSX(db, today)} />
+          <Buttons id="mora" pdf={async () => (await lib()).moraPDF(db, today)} xlsx={async () => (await excel()).moraXLSX(db, today)} />
         </ReportCard>
         <ReportCard title="Estado de cuenta por casa" text="Historial completo de cargos y abonos de una casa.">
           <div className="flex flex-wrap items-center gap-2">
@@ -113,7 +115,7 @@ export default function Reports() {
                 <option key={h.id} value={h.id}>{houseLabel(h)}</option>
               ))}
             </select>
-            {house && <Buttons id="stmt" pdf={() => statementPDF(db, house, today)} xlsx={async () => (await excel()).statementXLSX(db, house)} />}
+            {house && <Buttons id="stmt" pdf={async () => (await lib()).statementPDF(db, house, today)} xlsx={async () => (await excel()).statementXLSX(db, house)} />}
           </div>
         </ReportCard>
       </div>

@@ -73,7 +73,6 @@ export function createSeed(base: Config): DB {
   }
 
   let db: DB = {
-    version: 1,
     config: { ...base, startPeriod, nextReceiptNo: 1 },
     houses,
     charges: [
@@ -102,7 +101,6 @@ export function createSeed(base: Config): DB {
     credits: {},
     notifications: [],
     visits: [],
-    reports: [],
     expenses: [],
     users: [], // las cuentas se crean en Firebase Auth desde la pantalla Usuarios
   };

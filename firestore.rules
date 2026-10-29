@@ -36,7 +36,8 @@ service cloud.firestore {
     }
 
     match /houses/{houseId} {
-      allow read: if isAdmin() || isGuard() || (isResident() && myHouse() == houseId);
+      // El vigilante no lee casas: contienen DUI y teléfonos de los residentes.
+      allow read: if isAdmin() || (isResident() && myHouse() == houseId);
       allow write: if isAdmin();
     }
 
@@ -56,10 +57,6 @@ service cloud.firestore {
     }
 
     match /notifications/{id} {
-      allow read, write: if isAdmin();
-    }
-
-    match /reports/{id} {
       allow read, write: if isAdmin();
     }
 

@@ -26,6 +26,8 @@ export default function Notices() {
   const queue = notificationQueue(db, today);
   const items = queue.filter((i) => (filter === 'all' || i.type === filter) && (showSent || !i.sent));
   const pending = queue.filter((i) => !i.sent);
+  // Sin teléfono, WhatsApp se abriría sin destinatario y el aviso quedaría marcado como enviado sin serlo.
+  const sendable = pending.filter((i) => i.person.phone);
 
   function markSent(item: QueueItem) {
     update((d) => ({
@@ -46,7 +48,7 @@ export default function Notices() {
       <PageTitle
         title="Avisos de cobro por WhatsApp"
         subtitle={`Hoy ${fmtDate(today)} · ${pending.length} por enviar`}
-        actions={pending.length > 0 && <button className="btn btn-whatsapp" onClick={() => send(pending[0])}>Enviar el siguiente</button>}
+        actions={sendable.length > 0 && <button className="btn btn-whatsapp" onClick={() => send(sendable[0])}>Enviar el siguiente</button>}
       />
       <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
         La lista se arma sola cada día: <b>aviso anticipado</b> a las casas con la cuota del mes pendiente cuyo vencimiento cae entre hoy y el {fmtDate(advanceFrom)} ({db.config.advanceDays} días antes), y <b>aviso de mora</b> a las casas con cuotas vencidas. Al presionar
@@ -83,10 +85,14 @@ export default function Notices() {
               <p className="mb-3 rounded-md bg-slate-50 p-2 text-xs text-slate-600">{messageFor(db, item)}</p>
               <div className="flex items-center justify-between">
                 <span className="text-lg font-bold">{money(item.amount)}</span>
-                <div className="flex gap-2">
-                  {!item.sent && <button className="btn btn-secondary btn-sm" onClick={() => markSent(item)}>Marcar enviado</button>}
-                  <button className="btn btn-whatsapp btn-sm" onClick={() => send(item)}>{item.sent ? 'Reenviar' : 'Enviar'}</button>
-                </div>
+                {item.person.phone ? (
+                  <div className="flex gap-2">
+                    {!item.sent && <button className="btn btn-secondary btn-sm" onClick={() => markSent(item)}>Marcar enviado</button>}
+                    <button className="btn btn-whatsapp btn-sm" onClick={() => send(item)}>{item.sent ? 'Reenviar' : 'Enviar'}</button>
+                  </div>
+                ) : (
+                  <span className="text-sm font-semibold text-amber-800">Falta teléfono: agrégalo en Casas</span>
+                )}
               </div>
             </div>
           ))}

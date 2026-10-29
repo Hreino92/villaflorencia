@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { update, useDB, useToday } from '../../lib/store';
 import { chargesOf, chargeStatus, compareHouses, feeFor, houseDebt, houseLabel, overdueDebt, pendingOf } from '../../lib/billing';
 import { capitalize, fmtDate, money, periodLabel, periodOf } from '../../lib/dates';
-import { openFile, statementPDF } from '../../lib/pdf';
 import type { House, Person, Who } from '../../lib/types';
 import { Field, Modal, PageTitle, StatusBadge } from '../../components/ui';
 
@@ -76,7 +75,7 @@ function PersonFields({ value, onChange }: { value: Person; onChange: (p: Person
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <Field label="Nombre completo"><input className="input" value={value.name} onChange={set('name')} required /></Field>
-      <Field label="Teléfono WhatsApp (8 dígitos)"><input className="input" value={value.phone} onChange={set('phone')} inputMode="tel" pattern="\d{4}-?\d{4}" placeholder="7123-4567" required /></Field>
+      <Field label="Teléfono WhatsApp (8 dígitos)"><input className="input" value={value.phone} onChange={set('phone')} inputMode="tel" pattern="\d{4}-?\d{4}" placeholder="7123-4567" /></Field>
       <Field label="Correo (para entrar a la app)"><input className="input" type="email" value={value.email} onChange={set('email')} /></Field>
       <Field label="DUI"><input className="input" value={value.dui} onChange={set('dui')} placeholder="00000000-0" /></Field>
     </div>
@@ -187,7 +186,7 @@ export function HouseAccount({ house, onClose }: { house: House; onClose: () => 
         <div className="text-sm">
           Saldo pendiente: <b className="text-red-600">{money(houseDebt(db, house.id))}</b>
         </div>
-        <button className="btn btn-secondary" onClick={() => openFile(statementPDF(db, house, today))}>Descargar PDF</button>
+        <button className="btn btn-secondary" onClick={async () => { const p = await import('../../lib/pdf'); p.openFile(p.statementPDF(db, house, today)); }}>Descargar PDF</button>
       </div>
       <div className="max-h-[60vh] overflow-y-auto">
         <table className="table">

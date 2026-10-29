@@ -3,6 +3,9 @@ import { addDays, addMonths, capitalize, dueDateFor, periodLabel, periodOf, roun
 
 export const houseLabel = (h: House) => `Polígono ${h.poligono}, Lote ${h.lote}`;
 
+/** "A-12" → "Polígono A, Lote 12", sin leer la casa (el vigilante no tiene acceso a los datos de residentes). */
+export const houseIdLabel = (id: string) => id.replace(/^(.+)-(\d+)$/, 'Polígono $1, Lote $2');
+
 /** Orden natural: Polígono A lote 1, 2, …, 10; después Polígono B. */
 export const compareHouses = (a: House, b: House) => a.poligono.localeCompare(b.poligono) || a.lote - b.lote;
 
@@ -53,8 +56,7 @@ export function canCreateVisits(h: House, relation: Relation): boolean {
 }
 
 /**
- * Simula las Cloud Functions programadas: crea los cargos mensuales hasta el mes actual,
- * aplica saldos a favor y registra los reportes de los meses ya cerrados.
+ * Tareas automáticas: crea los cargos mensuales hasta el mes actual y aplica los saldos a favor.
  */
 export function runAutomations(db: DB, today: string): DB {
   const current = periodOf(today);
@@ -81,14 +83,8 @@ export function runAutomations(db: DB, today: string): DB {
     }
   }
 
-  const reports = [...db.reports];
-  const have = new Set(reports.map((r) => r.period));
-  for (let p = db.config.startPeriod; p < current; p = addMonths(p, 1)) {
-    if (!have.has(p)) reports.push({ period: p, generatedAt: `${addMonths(p, 1)}-01T01:00:00` });
-  }
-
-  if (charges.length === db.charges.length && reports.length === db.reports.length) return db;
-  return { ...db, charges, credits, reports };
+  if (charges.length === db.charges.length) return db;
+  return { ...db, charges, credits };
 }
 
 /** Registra un pago en efectivo, lo aplica a los cargos más antiguos y asigna el número de recibo. */

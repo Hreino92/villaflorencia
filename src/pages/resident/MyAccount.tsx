@@ -1,7 +1,6 @@
 import { useDB, useSession, useToday } from '../../lib/store';
 import { chargesOf, chargeStatus, houseDebt, houseLabel, overdueDebt, pendingOf } from '../../lib/billing';
 import { capitalize, fmtDate, money, periodLabel } from '../../lib/dates';
-import { openFile, statementPDF } from '../../lib/pdf';
 import { Empty, PageTitle, Stat, StatusBadge } from '../../components/ui';
 import ReceiptActions from '../../components/ReceiptActions';
 
@@ -23,7 +22,7 @@ export default function MyAccount() {
       <PageTitle
         title="Mi cuenta"
         subtitle={houseLabel(house)}
-        actions={<button className="btn btn-secondary" onClick={() => openFile(statementPDF(db, house, today))}>Estado de cuenta PDF</button>}
+        actions={<button className="btn btn-secondary" onClick={async () => { const p = await import('../../lib/pdf'); p.openFile(p.statementPDF(db, house, today)); }}>Estado de cuenta PDF</button>}
       />
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <Stat label="Saldo pendiente" value={money(debt)} tone={debt > 0 ? (late > 0 ? 'red' : 'amber') : 'green'} hint={debt === 0 ? 'Estás al día. ¡Gracias!' : late > 0 ? `${money(late)} en mora` : 'Sin mora'} />

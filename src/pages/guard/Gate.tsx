@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { update, useDB, useSession, useToday } from '../../lib/store';
-import { houseLabel } from '../../lib/billing';
+import { houseIdLabel } from '../../lib/billing';
 import { fmtDate } from '../../lib/dates';
 import type { Visit } from '../../lib/types';
 
@@ -70,7 +70,7 @@ export default function Gate() {
         </div>
       </form>
 
-      {result && <ResultCard result={result} houses={db.houses} onAdmit={admit} />}
+      {result && <ResultCard result={result} onAdmit={admit} />}
 
       <div className="card">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -80,12 +80,11 @@ export default function Gate() {
         <input className="input mb-3" placeholder="Buscar por nombre o DUI" value={search} onChange={(e) => setSearch(e.target.value)} />
         <ul className="divide-y divide-slate-100">
           {found.map((v) => {
-            const h = db.houses.find((x) => x.id === v.houseId);
             return (
               <li key={v.code} className="flex flex-wrap items-center justify-between gap-2 py-3">
                 <div>
                   <div className="font-semibold">{v.visitorName}</div>
-                  <div className="text-sm text-slate-500">DUI {v.dui} · {h ? houseLabel(h) : v.houseId}{v.reason && ` · ${v.reason}`}</div>
+                  <div className="text-sm text-slate-500">DUI {v.dui} · {houseIdLabel(v.houseId)}{v.reason && ` · ${v.reason}`}</div>
                   <div className="text-xs text-slate-400">Autorizado por {v.createdBy}</div>
                 </div>
                 {v.enteredAt ? (
@@ -103,7 +102,7 @@ export default function Gate() {
   );
 }
 
-function ResultCard({ result, houses, onAdmit }: { result: Result; houses: { id: string; poligono: string; lote: number }[]; onAdmit: (v: Visit) => void }) {
+function ResultCard({ result, onAdmit }: { result: Result; onAdmit: (v: Visit) => void }) {
   if (result.kind === 'notFound') {
     return (
       <div className="mb-4 rounded-xl border-2 border-red-400 bg-red-50 p-5 text-center">
@@ -113,8 +112,7 @@ function ResultCard({ result, houses, onAdmit }: { result: Result; houses: { id:
     );
   }
   const v = result.visit;
-  const h = houses.find((x) => x.id === v.houseId);
-  const where = h ? `Polígono ${h.poligono}, Lote ${h.lote}` : v.houseId;
+  const where = houseIdLabel(v.houseId);
   const style = {
     ok: 'border-emerald-500 bg-emerald-50 text-emerald-800',
     used: 'border-amber-400 bg-amber-50 text-amber-800',

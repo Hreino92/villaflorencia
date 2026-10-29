@@ -21,8 +21,9 @@ function HouseMap() {
   };
   const byPoligono = new Map<string, typeof db.houses>();
   for (const h of db.houses) byPoligono.set(h.poligono, [...(byPoligono.get(h.poligono) ?? []), h]);
+  const statusOf = new Map(db.houses.map((h) => [h.id, status(h.id)]));
   const counts = { pagado: 0, parcial: 0, pendiente: 0, vencido: 0 } as Record<ChargeStatus, number>;
-  for (const h of db.houses) counts[status(h.id)]++;
+  for (const st of statusOf.values()) counts[st]++;
 
   if (!db.houses.length) {
     return (
@@ -53,7 +54,7 @@ function HouseMap() {
             <div className="shrink-0 text-[13px] font-semibold text-slate-500 sm:w-24 sm:pt-1.5">Polígono {pol}</div>
             <ul className="flex flex-wrap gap-1.5">
               {houses.map((h) => {
-                const st = status(h.id);
+                const st = statusOf.get(h.id)!;
                 return (
                   <li key={h.id} title={`${houseLabel(h)}: ${STATUS_STYLE[st].label}`} className={`flex h-9 w-9 items-center justify-center rounded-md text-[13px] font-bold ${STATUS_STYLE[st].tile}`}>
                     <span className="sr-only">{houseLabel(h)}, {STATUS_STYLE[st].label}: </span>
