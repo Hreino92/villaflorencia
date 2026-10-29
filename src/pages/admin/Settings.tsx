@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { update, useDB } from '../../lib/store';
+import { importHouses, parseHouseImport, update, useDB, type HouseImport } from '../../lib/store';
+import { money, periodLabel } from '../../lib/dates';
 import { usingEmulators } from '../../lib/firebase';
 import { DEFAULT_TEMPLATES } from '../../lib/seed';
 import type { Config } from '../../lib/types';
@@ -11,6 +12,74 @@ const TEMPLATE_INFO: { key: keyof Config['templates']; label: string; vars: stri
   { key: 'receipt', label: 'Envío de recibo', vars: '{nombre} {casa} {monto} {recibo} {residencial}' },
   { key: 'visit', label: 'Código de visita (lo comparte el residente)', vars: '{visitante} {codigo} {fecha} {casa} {residencial}' },
 ];
+
+/** Carga las casas reales desde el archivo preparado, reemplazando los datos actuales. */
+function ImportHouses() {
+  const db = useDB();
+  const [data, setData] = useState<HouseImport | null>(null);
+  const [fileName, setFileName] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState('');
+
+  async function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    setData(null);
+    setError('');
+    setDone('');
+    if (!file) return;
+    setFileName(file.name);
+    const result = parseHouseImport(await file.text());
+    if (typeof result === 'string') setError(result);
+    else setData(result);
+  }
+
+  async function run() {
+    if (!data) return;
+    if (!confirm(`Se borrarán las ${db.houses.length} casas actuales con sus pagos, visitas y gastos, y se crearán ${data.houses.length} casas. Esto no se puede deshacer. ¿Continuar?`)) return;
+    setBusy(true);
+    setError('');
+    try {
+      await importHouses(data);
+      setDone(`Listo: se crearon ${data.houses.length} casas. Revisa la pantalla Casas para completar teléfonos y correos.`);
+      setData(null);
+    } catch (err) {
+      console.error(err);
+      setError('No se pudo completar la importación. Revisa tu conexión y vuelve a intentarlo con el mismo archivo.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const debt = data ? data.charges.reduce((s, c) => s + c.amount, 0) : 0;
+  const residents = db.users.filter((u) => u.role === 'residente').length;
+
+  return (
+    <div className="card mb-6 max-w-3xl">
+      <h2 className="font-bold">Importar casas</h2>
+      <p className="mb-3 text-sm text-slate-500">Reemplaza las casas actuales por las del archivo de importación (por ejemplo, casas-villa-florencia.json).</p>
+      <input type="file" accept=".json,application/json" onChange={pick} className="text-sm" aria-label="Archivo de importación" />
+      {data && (
+        <div className="mt-4 rounded-[10px] bg-slate-50 p-4 text-sm">
+          <p className="mb-2 font-semibold">{fileName}</p>
+          <ul className="mb-3 list-disc space-y-0.5 pl-5">
+            <li>Se crearán {data.houses.length} casas ({data.houses.filter((h) => h.tenant).length} con inquilino).</li>
+            <li>{data.charges.length} cuotas pendientes de meses anteriores, por {money(debt)}, en {new Set(data.charges.map((c) => c.houseId)).size} casas.</li>
+            <li>{Object.keys(data.credits).length} casas con saldo a favor.</li>
+            <li>Las cuotas automáticas empiezan en {periodLabel(data.startPeriod)}.</li>
+          </ul>
+          <p className="mb-3 text-red-800">
+            Se borrarán {db.houses.length} casas, {db.payments.length} pagos, {db.visits.length} visitas y {db.expenses.length} gastos actuales
+            {residents > 0 && `, y ${residents} cuentas de residentes perderán el acceso`}. Tu cuenta y la de los vigilantes se conservan.
+          </p>
+          <button className="btn btn-danger" disabled={busy} onClick={run}>{busy ? 'Importando…' : 'Borrar datos actuales e importar'}</button>
+        </div>
+      )}
+      {error && <p role="alert" className="mt-3 rounded-md bg-red-50 p-2 text-sm text-red-700">{error}</p>}
+      {done && <p className="mt-3 rounded-md bg-emerald-50 p-2 text-sm text-emerald-800">{done}</p>}
+    </div>
+  );
+}
 
 export default function Settings() {
   const db = useDB();
@@ -62,6 +131,8 @@ export default function Settings() {
           <button className="btn btn-primary">Guardar configuración</button>
         </div>
       </form>
+
+      <ImportHouses />
 
       {/* Solo en el modo de pruebas local: en producción cambiaría la fecha para todos. */}
       {usingEmulators && (

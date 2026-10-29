@@ -3,6 +3,9 @@ import { addDays, addMonths, capitalize, dueDateFor, periodLabel, periodOf, roun
 
 export const houseLabel = (h: House) => `Polígono ${h.poligono}, Lote ${h.lote}`;
 
+/** Orden natural: Polígono A lote 1, 2, …, 10; después Polígono B. */
+export const compareHouses = (a: House, b: House) => a.poligono.localeCompare(b.poligono) || a.lote - b.lote;
+
 export const feeFor = (db: DB, h: House) => h.customFee ?? db.config.fee;
 
 export const pendingOf = (c: Charge) => round2(c.amount - c.paid);

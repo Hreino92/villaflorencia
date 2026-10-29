@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useDB, useToday } from '../../lib/store';
-import { chargeStatus, houseLabel, notificationQueue, overdueChargesOf, type ChargeStatus } from '../../lib/billing';
+import { chargeStatus, houseLabel, notificationQueue, openChargesOf, type ChargeStatus } from '../../lib/billing';
 import { incomeSummary, moraList } from '../../lib/reports';
 import { fmtDate, money, periodLabel, periodOf } from '../../lib/dates';
 import { PageTitle, STATUS_STYLE, Stat } from '../../components/ui';
@@ -13,10 +13,11 @@ function HouseMap() {
   const db = useDB();
   const today = useToday();
   const period = periodOf(today);
+  // En mora si debe algo vencido; pendiente/parcial si debe algo que aún no vence; si no debe nada, al día.
   const status = (houseId: string): ChargeStatus => {
-    if (overdueChargesOf(db, houseId, today).length) return 'vencido';
-    const c = db.charges.find((x) => x.houseId === houseId && x.kind === 'monthly' && x.period === period);
-    return c ? chargeStatus(c, today) : 'pendiente';
+    const open = openChargesOf(db, houseId);
+    if (!open.length) return 'pagado';
+    return open.some((c) => c.dueDate < today) ? 'vencido' : chargeStatus(open[0], today);
   };
   const byPoligono = new Map<string, typeof db.houses>();
   for (const h of db.houses) byPoligono.set(h.poligono, [...(byPoligono.get(h.poligono) ?? []), h]);
@@ -35,13 +36,13 @@ function HouseMap() {
     <section className="card" aria-labelledby="map-title">
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="map-title" className="text-[19px] font-extrabold tracking-tight">
-          {counts.pagado} de {db.houses.length} casas ya pagaron {periodLabel(period)}
+          {counts.pagado} de {db.houses.length} casas al día en {periodLabel(period)}
         </h2>
         <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-slate-600">
           {(['pagado', 'parcial', 'pendiente', 'vencido'] as const).map((k) => (
             <li key={k} className="flex items-center gap-1.5">
               <span className={`h-3 w-3 rounded-[3px] ${STATUS_STYLE[k].tile}`} />
-              {STATUS_STYLE[k].label} ({counts[k]})
+              {k === 'pagado' ? 'Al día' : STATUS_STYLE[k].label} ({counts[k]})
             </li>
           ))}
         </ul>

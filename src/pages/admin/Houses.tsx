@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { update, useDB, useToday } from '../../lib/store';
-import { chargesOf, chargeStatus, feeFor, houseDebt, houseLabel, overdueDebt, pendingOf } from '../../lib/billing';
+import { chargesOf, chargeStatus, compareHouses, feeFor, houseDebt, houseLabel, overdueDebt, pendingOf } from '../../lib/billing';
 import { capitalize, fmtDate, money, periodLabel, periodOf } from '../../lib/dates';
 import { openFile, statementPDF } from '../../lib/pdf';
 import type { House, Person, Who } from '../../lib/types';
@@ -100,7 +100,7 @@ function HouseForm({ house, onClose }: { house: House; onClose: () => void }) {
     const amount = Number(opening);
     update((d) => ({
       ...d,
-      houses: isNew ? [...d.houses, saved].sort((a, b) => a.poligono.localeCompare(b.poligono) || a.lote - b.lote) : d.houses.map((x) => (x.id === id ? saved : x)),
+      houses: isNew ? [...d.houses, saved].sort(compareHouses) : d.houses.map((x) => (x.id === id ? saved : x)),
       charges:
         amount > 0
           ? [...d.charges, { id: `opening-${id}-${Date.now()}`, houseId: id, kind: 'opening', period: periodOf(today), description: openingDesc || 'Saldo anterior', amount, dueDate: today, paid: 0 }]

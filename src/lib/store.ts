@@ -26,9 +26,9 @@ import {
   type Query,
   type Unsubscribe,
 } from 'firebase/firestore';
-import type { Charge, Config, DB, Payment, Relation, Role, Session, User } from './types';
+import type { Charge, Config, DB, House, Payment, Relation, Role, Session, User } from './types';
 import { auth, creatorAuth, fs } from './firebase';
-import { applyPayment, runAutomations } from './billing';
+import { applyPayment, compareHouses, runAutomations } from './billing';
 import { defaultConfig, createSeed } from './seed';
 import { localISODate } from './dates';
 
@@ -227,7 +227,10 @@ function listenList(name: ListName, q: Query) {
     onSnapshot(
       q,
       (snap) => {
-        set({ db: { ...state.db, [name]: snap.docs.map((d) => d.data()) } });
+        const docs = snap.docs.map((d) => d.data());
+        // Firestore ordena por id como texto ("A-10" antes que "A-2"): las casas se ordenan por número.
+        if (name === 'houses') (docs as House[]).sort(compareHouses);
+        set({ db: { ...state.db, [name]: docs } });
         markLoaded(name);
       },
       failed(name),
@@ -437,6 +440,62 @@ export async function registerPayment(input: Parameters<typeof applyPayment>[1])
     if (after.credits[input.houseId] !== before.credits[input.houseId]) tx.set(creditRef, { amount: after.credits[input.houseId] ?? 0 });
     return payment;
   });
+}
+
+export interface HouseImport {
+  startPeriod: string;
+  houses: House[];
+  charges: Charge[];
+  credits: Record<string, number>;
+}
+
+/** Lee y valida el archivo de importación de casas. Devuelve los datos o un mensaje de error. */
+export function parseHouseImport(text: string): HouseImport | string {
+  let d: Partial<HouseImport> & { format?: string };
+  try {
+    d = JSON.parse(text);
+  } catch {
+    return 'El archivo no es un JSON válido.';
+  }
+  if (d.format !== 'villaflorencia-import-v1') return 'Este archivo no es un archivo de importación de casas.';
+  if (!/^\d{4}-\d{2}$/.test(d.startPeriod ?? '')) return 'El archivo no indica desde qué mes se cobra.';
+  if (!Array.isArray(d.houses) || !d.houses.length || !Array.isArray(d.charges) || typeof d.credits !== 'object' || !d.credits) return 'Al archivo le faltan casas o cuotas.';
+  const ids = new Set<string>();
+  for (const h of d.houses) {
+    if (!h?.id || !h.poligono || !(h.lote > 0) || !h.owner?.name) return `Casa con datos incompletos: ${JSON.stringify(h).slice(0, 80)}`;
+    if (ids.has(h.id)) return `Casa repetida: ${h.id}`;
+    ids.add(h.id);
+  }
+  for (const c of d.charges) {
+    if (!c?.id || !ids.has(c.houseId) || !(c.amount > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(c.dueDate)) return `Cuota con datos incompletos: ${JSON.stringify(c).slice(0, 80)}`;
+  }
+  for (const [k, v] of Object.entries(d.credits)) if (!ids.has(k) || !(v > 0)) return `Saldo a favor inválido para ${k}.`;
+  return d as HouseImport;
+}
+
+/**
+ * Reemplaza casas, cuotas, pagos, visitas, avisos, reportes y gastos por los del archivo.
+ * Conserva administradores, vigilantes y la configuración (el cobro automático empieza en startPeriod).
+ */
+export async function importHouses(data: HouseImport): Promise<void> {
+  const prev = state.db;
+  const next: DB = {
+    ...prev,
+    config: { ...prev.config, startPeriod: data.startPeriod, nextReceiptNo: 1 },
+    houses: data.houses,
+    charges: data.charges,
+    credits: data.credits,
+    payments: [],
+    notifications: [],
+    visits: [],
+    reports: [],
+    expenses: [],
+    // Las cuentas de residentes apuntaban a las casas anteriores (una "A-1" de ejemplo daría acceso a la A-1 real):
+    // se quitan todas. Administradores y vigilantes se quedan.
+    users: prev.users.filter((u) => u.role !== 'residente'),
+  };
+  set({ db: next });
+  await commit(diff(prev, next));
 }
 
 /** Configuración inicial: crea la cuenta del primer administrador y la residencial. */
