@@ -34,7 +34,7 @@ export default function Setup() {
     setForm({ ...form, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-800 to-emerald-950 p-4">
+    <div className="flex min-h-screen items-center justify-center bg-emerald-900 p-4">
       <form onSubmit={submit} className="card w-full max-w-md space-y-4">
         <div>
           <h1 className="text-xl font-bold text-emerald-800">Configuración inicial</h1>

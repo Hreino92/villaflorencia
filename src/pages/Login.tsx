@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { login, resetPassword, useAuthStatus, useDB, useSession, useSetupNeeded } from '../lib/store';
 import { HOME, Loading } from '../components/RequireRole';
-import { Field } from '../components/ui';
+import { Field, Veranera } from '../components/ui';
+import { splitName } from '../components/Layout';
 
 export default function Login() {
   const db = useDB();
@@ -49,13 +50,24 @@ export default function Login() {
     else setInfo('Si el correo está registrado, te llegará un enlace para crear una nueva contraseña.');
   }
 
+  const [kind, name] = splitName(db.config.name);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-800 to-emerald-950 p-4">
-      <form onSubmit={submit} className="card w-full max-w-sm space-y-4">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-emerald-800">{db.config.name}</h1>
-          <p className="text-sm text-slate-500">Cobros, recibos y control de visitas</p>
+    <div className="min-h-screen md:grid md:grid-cols-[1.1fr_1fr]">
+      <section className="relative overflow-hidden bg-emerald-900 px-6 py-10 text-white md:flex md:flex-col md:justify-between md:px-14 md:py-14">
+        <Veranera size={44} className="md:invisible" />
+        <div className="relative mt-8 md:mt-0">
+          {kind && <p className="text-lg text-emerald-200">{kind}</p>}
+          <h1 className="text-[44px] leading-[0.95] font-extrabold tracking-tight md:text-[88px]">{name}</h1>
+          <p className="mt-5 max-w-sm text-[17px] text-emerald-100">Cuotas, recibos y visitas de la residencial, en un solo lugar.</p>
         </div>
+        {/* Veranera grande asomando por la esquina, como la que cuelga de los muros de la colonia */}
+        <Veranera size={380} className="pointer-events-none absolute -top-24 -right-24 hidden md:block" />
+      </section>
+
+      <div className="flex items-center justify-center bg-slate-50 px-5 py-10">
+      <form onSubmit={submit} className="w-full max-w-sm space-y-4">
+        <h2 className="text-[22px] font-extrabold tracking-tight">Entrar</h2>
         <Field label="Correo electrónico">
           <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" autoFocus required />
         </Field>
@@ -65,10 +77,11 @@ export default function Login() {
         {error && <p className="rounded-md bg-red-50 p-2 text-sm text-red-700">{error}</p>}
         {info && <p className="rounded-md bg-emerald-50 p-2 text-sm text-emerald-800">{info}</p>}
         <button className="btn btn-primary w-full" disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</button>
-        <button type="button" className="w-full text-center text-xs text-emerald-700 hover:underline" onClick={forgot}>
+        <button type="button" className="w-full text-center text-sm font-semibold text-emerald-700 hover:underline" onClick={forgot}>
           Olvidé mi contraseña
         </button>
       </form>
+      </div>
     </div>
   );
 }

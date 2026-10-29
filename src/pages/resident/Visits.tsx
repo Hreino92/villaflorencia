@@ -89,7 +89,7 @@ export default function Visits() {
                       {v.enteredAt && <div className="text-sm text-emerald-700">Ingresó {fmtDateTime(v.enteredAt)}</div>}
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="rounded-md bg-slate-900 px-3 py-1 font-mono text-lg tracking-widest text-white">{v.code}</span>
+                      <span className="ticket text-lg">{v.code}</span>
                       {!v.enteredAt && (
                         <>
                           <button className="btn btn-whatsapp btn-sm" onClick={() => share(v)}>Compartir</button>
@@ -122,7 +122,7 @@ export default function Visits() {
         <Modal title="Código generado" onClose={() => setCreated(null)}>
           <div className="text-center">
             <p className="text-sm text-slate-500">Código para {created.visitorName}, válido el {fmtDate(created.date)}</p>
-            <div className="my-4 font-mono text-5xl font-bold tracking-[0.3em] text-emerald-800">{created.code}</div>
+            <div className="ticket my-5 px-6 py-3 text-4xl">{created.code}</div>
             <p className="mb-4 text-sm text-slate-600">Compártelo con tu visitante. Debe presentarlo junto con su DUI en la caseta.</p>
             <button className="btn btn-whatsapp w-full" onClick={() => share(created)}>Compartir por WhatsApp</button>
           </div>
