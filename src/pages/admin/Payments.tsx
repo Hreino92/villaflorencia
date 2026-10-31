@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { registerPayment, updatePayment, useDB, useSession, useToday } from '../../lib/store';
+import { registerPayment, updatePayment, useDB, useSession, useToday, voidReceipt } from '../../lib/store';
 import { applyPayment, houseDebt, houseLabel, houseMatches, openChargesOf, overdueDebt, pendingOf } from '../../lib/billing';
 import { fmtDate, fmtDateTime, localISODate, money } from '../../lib/dates';
 import type { Payment } from '../../lib/types';
@@ -13,6 +13,7 @@ export default function Payments() {
   const [registering, setRegistering] = useState(false);
   const [done, setDone] = useState<Payment | null>(null);
   const [editing, setEditing] = useState<Payment | null>(null);
+  const [voiding, setVoiding] = useState<Payment | null>(null);
 
   const term = q.trim().toLowerCase();
   const list = useMemo(
@@ -45,7 +46,10 @@ export default function Payments() {
                   <td className="whitespace-nowrap">{h ? houseLabel(h) : p.houseId}</td>
                   <td>{p.payerName}</td>
                   <td className="text-xs text-slate-500">{p.allocations.map((a) => a.description).join(', ')}{p.credit > 0 && ` + ${money(p.credit)} a favor`}</td>
-                  <td className="text-right font-semibold">{money(p.amount)}{p.editedAt && <div className="text-xs font-normal text-amber-800">corregido</div>}</td>
+                  <td className="text-right font-semibold">
+                    {p.voidedAt ? <s className="text-slate-400">{money(p.amount)}</s> : money(p.amount)}
+                    {p.voidedAt ? <div className="text-xs font-bold text-red-700">ANULADO</div> : p.editedAt && <div className="text-xs font-normal text-amber-800">corregido</div>}
+                  </td>
                   <td><button className="btn btn-secondary btn-sm" onClick={() => setDone(p)}>Recibo</button></td>
                 </tr>
               );
@@ -71,12 +75,32 @@ export default function Payments() {
             <div className="text-slate-600">{fmtDateTime(done.date)} · {done.allocations.map((a) => a.description).join(', ')}</div>
             {done.credit > 0 && <div className="text-emerald-700">Quedan {money(done.credit)} a favor para el próximo mes.</div>}
             {done.editedAt && <div className="text-amber-800">Corregido el {fmtDateTime(done.editedAt)} por {done.editedBy}.</div>}
+            {done.voidedAt && (
+              <div className="mt-1 font-semibold text-red-700">
+                ANULADO el {fmtDateTime(done.voidedAt)} por {done.voidedBy}. Motivo: {done.voidReason}
+              </div>
+            )}
           </div>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <ReceiptActions db={db} payment={done} />
-            <button className="btn btn-secondary btn-sm" onClick={() => { setEditing(done); setDone(null); }}>Editar pago</button>
+            {!done.voidedAt && (
+              <div className="flex gap-2">
+                <button className="btn btn-secondary btn-sm" onClick={() => { setEditing(done); setDone(null); }}>Editar pago</button>
+                <button className="btn btn-secondary btn-sm text-red-700" onClick={() => { setVoiding(done); setDone(null); }}>Anular recibo</button>
+              </div>
+            )}
           </div>
         </Modal>
+      )}
+      {voiding && (
+        <VoidReceiptForm
+          payment={voiding}
+          onClose={() => setVoiding(null)}
+          onDone={(p) => {
+            setVoiding(null);
+            setDone(p);
+          }}
+        />
       )}
       {editing && (
         <EditPaymentForm
@@ -213,6 +237,59 @@ function RegisterPayment({ onClose, onDone }: { onClose: () => void; onDone: (p:
         <div className="flex justify-end gap-2">
           <button type="button" className="btn btn-secondary" onClick={preview ? () => setPreview(null) : onClose}>{preview ? 'Cambiar datos' : 'Cancelar'}</button>
           <button className="btn btn-primary" disabled={!house || busy}>{busy ? 'Registrando…' : preview ? 'Confirmar y generar recibo' : 'Revisar pago'}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function VoidReceiptForm({ payment, onClose, onDone }: { payment: Payment; onClose: () => void; onDone: (p: Payment) => void }) {
+  const db = useDB();
+  const session = useSession()!;
+  const house = db.houses.find((h) => h.id === payment.houseId);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!reason.trim()) return setError('Escribe el motivo de la anulación.');
+    setBusy(true);
+    setError('');
+    try {
+      onDone(await voidReceipt(payment.id, payment.houseId, { reason, voidedBy: session.name }));
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error && !('code' in err) ? err.message : 'No se pudo anular. Revisa tu conexión a internet e intenta de nuevo.');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={`Anular recibo No. ${String(payment.receiptNo).padStart(6, '0')}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <div className="rounded-lg bg-red-50 p-3 text-sm text-red-900">
+          <p className="mb-1 font-semibold">
+            {money(payment.amount)} de {payment.payerName}, {house ? houseLabel(house) : payment.houseId}.
+          </p>
+          <p className="mb-1">Al anularlo, esto vuelve a quedar pendiente:</p>
+          <ul className="list-disc pl-5">
+            {payment.allocations.map((a) => (
+              <li key={a.chargeId}>
+                {a.description.endsWith('(adelantada)') ? `${a.description.replace(' (adelantada)', '')}: se quita (estaba pagada por adelantado)` : `${a.description}: ${money(a.amount)}`}
+              </li>
+            ))}
+            {(payment.creditUsed ?? 0) > 0 && <li>Se devuelven {money(payment.creditUsed!)} de saldo a favor que la casa tenía.</li>}
+          </ul>
+          <p className="mt-2">El recibo no se borra: queda en la lista marcado como ANULADO y ya no cuenta como ingreso. No se puede deshacer.</p>
+        </div>
+        <Field label="Motivo de la anulación">
+          <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ej.: se registró en la casa equivocada" required />
+        </Field>
+        {error && <p role="alert" className="rounded-md bg-red-50 p-2 text-sm text-red-700">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-danger" disabled={busy}>{busy ? 'Anulando…' : 'Anular recibo'}</button>
         </div>
       </form>
     </Modal>

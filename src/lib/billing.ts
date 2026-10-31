@@ -170,6 +170,36 @@ export function applyPayment(
 }
 
 /**
+ * Deshace lo que aplicó un pago: devuelve a sus cuotas lo pagado y deja el saldo a favor como estaba antes.
+ * Devuelve un mensaje si no se puede sin descuadrar cuentas. El pago sigue en la lista: quien llama decide.
+ */
+function undoPayment(db: DB, old: Payment, isLatest: boolean, action: string): DB | string {
+  if (old.voidedAt) return 'Este recibo está anulado.';
+  // Con saldo a favor de por medio, un pago posterior o una cuota nueva pudo haber usado ese dinero:
+  // deshacerlo dejaría cuotas pagadas con dinero que ya no existe.
+  const touchesCredit = old.credit > 0 || (old.creditUsed ?? 0) > 0;
+  if (touchesCredit && (!isLatest || round2(db.credits[old.houseId] ?? 0) < old.credit)) {
+    return `Este pago usó o dejó saldo a favor que ya se aplicó después (en otro pago o en una cuota nueva), así que no se puede ${action}.`;
+  }
+  const back = new Map<string, number>();
+  for (const a of old.allocations) back.set(a.chargeId, round2((back.get(a.chargeId) ?? 0) + a.amount));
+  const credits = { ...db.credits };
+  credits[old.houseId] = round2((credits[old.houseId] ?? 0) - old.credit + (old.creditUsed ?? 0));
+  if (credits[old.houseId] <= 0) delete credits[old.houseId];
+  return {
+    ...db,
+    charges: db.charges.map((c) => (back.has(c.id) ? { ...c, paid: round2(c.paid - back.get(c.id)!) } : c)),
+    credits,
+  };
+}
+
+/** Meses que el pago creó como adelantados y que quedaron sin pagar: se quitan (no son deuda real). */
+function dropUnpaidPrepaid(charges: Charge[], old: Payment): Charge[] {
+  const prepaid = new Set(old.allocations.filter((a) => a.description.endsWith('(adelantada)')).map((a) => a.chargeId));
+  return charges.filter((c) => !(prepaid.has(c.id) && c.paid === 0));
+}
+
+/**
  * Corrige un pago: deshace lo que aplicó (cuotas y saldo a favor) y lo vuelve a aplicar con los datos nuevos.
  * Conserva el id y el número de recibo. Devuelve un mensaje si no se puede corregir sin descuadrar cuentas.
  */
@@ -177,41 +207,39 @@ export function editPayment(
   db: DB,
   old: Payment,
   input: { amount: number; payerName: string; note: string; date: string; editedBy: string },
-  isLatest: boolean, // ¿es el último pago de la casa?
+  isLatest: boolean, // ¿es el último pago vigente de la casa?
 ): { db: DB; payment: Payment } | string {
-  // Con saldo a favor de por medio, un pago posterior o una cuota nueva pudo haber usado ese dinero:
-  // deshacerlo dejaría cuotas pagadas con dinero que ya no existe.
-  const touchesCredit = old.credit > 0 || (old.creditUsed ?? 0) > 0;
-  if (touchesCredit && (!isLatest || round2(db.credits[old.houseId] ?? 0) < old.credit)) {
-    return 'Este pago usó o dejó saldo a favor que ya se aplicó después (en otro pago o en una cuota nueva), así que no se puede corregir. Registra la diferencia como un pago nuevo.';
-  }
-  const back = new Map<string, number>();
-  for (const a of old.allocations) back.set(a.chargeId, round2((back.get(a.chargeId) ?? 0) + a.amount));
-  // Se devuelve el saldo a favor como estaba antes del pago.
-  const credits = { ...db.credits };
-  credits[old.houseId] = round2((credits[old.houseId] ?? 0) - old.credit + (old.creditUsed ?? 0));
-  if (credits[old.houseId] <= 0) delete credits[old.houseId];
-  const undone: DB = {
-    ...db,
-    config: { ...db.config, nextReceiptNo: old.receiptNo }, // applyPayment toma el número de aquí: se conserva el del recibo
-    charges: db.charges.map((c) => (back.has(c.id) ? { ...c, paid: round2(c.paid - back.get(c.id)!) } : c)),
-    payments: db.payments.filter((p) => p.id !== old.id),
-    credits,
-  };
-  const r = applyPayment(undone, { ...input, houseId: old.houseId, receivedBy: old.receivedBy });
+  const undone = undoPayment(db, old, isLatest, 'corregir. Registra la diferencia como un pago nuevo');
+  if (typeof undone === 'string') return undone;
+  const r = applyPayment(
+    // applyPayment toma el número de recibo de la configuración: se conserva el del recibo original.
+    { ...undone, config: { ...db.config, nextReceiptNo: old.receiptNo }, payments: db.payments.filter((p) => p.id !== old.id) },
+    { ...input, houseId: old.houseId, receivedBy: old.receivedBy },
+  );
   const payment: Payment = { ...r.payment, id: old.id, editedAt: new Date().toISOString(), editedBy: input.editedBy };
-  // Meses que el pago original creó como adelantados y que con el monto nuevo ya no se pagan: se quitan.
-  const prepaid = new Set(old.allocations.filter((a) => a.description.endsWith('(adelantada)')).map((a) => a.chargeId));
   return {
     payment,
-    db: {
-      ...r.db,
-      config: db.config,
-      charges: r.db.charges.filter((c) => !(prepaid.has(c.id) && c.paid === 0)),
-      payments: db.payments.map((p) => (p.id === old.id ? payment : p)),
-    },
+    db: { ...r.db, config: db.config, charges: dropUnpaidPrepaid(r.db.charges, old), payments: db.payments.map((p) => (p.id === old.id ? payment : p)) },
   };
 }
+
+/**
+ * Anula un recibo: deshace lo que aplicó y lo deja en la lista marcado como anulado (con motivo, quién y cuándo),
+ * así el número de recibo no queda como un hueco. Un recibo anulado ya no cuenta como ingreso.
+ */
+export function voidPayment(db: DB, old: Payment, input: { reason: string; voidedBy: string }, isLatest: boolean): { db: DB; payment: Payment } | string {
+  if (!input.reason.trim()) return 'Escribe el motivo de la anulación.';
+  const undone = undoPayment(db, old, isLatest, 'anular');
+  if (typeof undone === 'string') return undone;
+  const payment: Payment = { ...old, voidedAt: new Date().toISOString(), voidedBy: input.voidedBy, voidReason: input.reason.trim() };
+  return {
+    payment,
+    db: { ...undone, charges: dropUnpaidPrepaid(undone.charges, old), payments: db.payments.map((p) => (p.id === old.id ? payment : p)) },
+  };
+}
+
+/** Pagos que cuentan: los anulados quedan solo como registro. */
+export const validPayments = (payments: Payment[]) => payments.filter((p) => !p.voidedAt);
 
 /**
  * ¿Se puede corregir (newAmount) o quitar (null) un saldo anterior? Devuelve el motivo si no, o null.

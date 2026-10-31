@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useDB, useToday } from '../../lib/store';
-import { chargeStatus, houseLabel, notificationQueue, openChargesOf, type ChargeStatus } from '../../lib/billing';
+import { chargeStatus, houseLabel, notificationQueue, openChargesOf, validPayments, type ChargeStatus } from '../../lib/billing';
 import { incomeSummary, moraList } from '../../lib/reports';
 import { fmtDate, money, periodLabel, periodOf } from '../../lib/dates';
 import { PageTitle, STATUS_STYLE, Stat } from '../../components/ui';
@@ -80,7 +80,7 @@ export default function Dashboard() {
   const pendingNotices = queue.filter((q) => !q.sent).length;
   const moraTotal = mora.reduce((s, r) => s + r.amount, 0);
   const visitsToday = db.visits.filter((v) => v.date === today);
-  const recent = [...db.payments].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
+  const recent = validPayments(db.payments).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
 
   return (
     <>

@@ -1,9 +1,9 @@
 import type { DB, Expense, House, Payment } from './types';
-import { chargesOf, chargeStatus, feeFor, houseDebt, houseLabel, overdueChargesOf, pendingOf, type ChargeStatus } from './billing';
+import { chargesOf, chargeStatus, feeFor, houseDebt, houseLabel, overdueChargesOf, pendingOf, validPayments, type ChargeStatus } from './billing';
 import { addMonths, capitalize, periodLabel, periodOf, round2 } from './dates';
 
 export function paymentsInPeriod(db: DB, period: string): Payment[] {
-  return db.payments.filter((p) => periodOf(p.date) === period).sort((a, b) => a.receiptNo - b.receiptNo);
+  return validPayments(db.payments).filter((p) => periodOf(p.date) === period).sort((a, b) => a.receiptNo - b.receiptNo);
 }
 
 export function incomeSummary(db: DB, period: string) {
@@ -55,7 +55,7 @@ export function statement(db: DB, houseId: string): StatementRow[] {
     // Meses pagados según el registro anterior: no tienen recibo en la app, el abono se muestra aquí.
     if (c.paidBeforeSystem) events.push({ date: `${c.period}-01`, concept: 'Pagado antes del sistema', charge: 0, payment: c.paid, order: 1 });
   }
-  for (const p of db.payments.filter((x) => x.houseId === houseId)) {
+  for (const p of validPayments(db.payments).filter((x) => x.houseId === houseId)) {
     events.push({ date: p.date.slice(0, 10), concept: `Pago en efectivo - Recibo No. ${p.receiptNo}`, charge: 0, payment: p.amount, order: 1 });
   }
   events.sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order);
@@ -92,7 +92,7 @@ export interface FinancialSummary {
 export function financialSummary(db: DB, from: string, to: string): FinancialSummary {
   const periods = periodsBetween(from, to);
   const inRange = (date: string) => periodOf(date) >= from && periodOf(date) <= to;
-  const payments = db.payments.filter((p) => inRange(p.date)).sort((a, b) => a.date.localeCompare(b.date) || a.receiptNo - b.receiptNo);
+  const payments = validPayments(db.payments).filter((p) => inRange(p.date)).sort((a, b) => a.date.localeCompare(b.date) || a.receiptNo - b.receiptNo);
   const expenseList = db.expenses.filter((e) => inRange(e.date)).sort((a, b) => a.date.localeCompare(b.date));
   const months = periods.map((period) => ({
     period,

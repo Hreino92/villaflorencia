@@ -178,6 +178,37 @@ test('saldo anterior: se corrige o quita solo si no descuadra los recibos', () =
   assert.equal(err(opening({ paid: 66, paidBeforeSystem: true }), null), null); // pagado antes del sistema: se puede quitar
 });
 
+test('anular un recibo devuelve las cuotas a pendiente y lo deja marcado', () => {
+  const d0 = db({ charges: [charge('A-1', '2026-09'), charge('A-1', '2026-10')] });
+  const p = pay(d0, 66); // sep, oct y noviembre adelantado
+  const r = billing.voidPayment(p.db, p.payment, { reason: 'Billete falso', voidedBy: 'Admin' }, true);
+  assert.equal(typeof r, 'object');
+  assert.deepEqual(r.db.charges.map((c) => [c.period, c.paid]), [['2026-09', 0], ['2026-10', 0]]); // noviembre se quita
+  assert.equal(r.db.payments.length, 1);
+  assert.equal(r.payment.voidReason, 'Billete falso');
+  assert.equal(r.payment.receiptNo, 1);
+  assert.equal(r.db.config.nextReceiptNo, 2); // el número no se reutiliza
+  assert.equal(billing.validPayments(r.db.payments).length, 0);
+  // Un recibo anulado no se vuelve a anular ni se corrige.
+  assert.equal(typeof billing.voidPayment(r.db, r.payment, { reason: 'x', voidedBy: 'Admin' }, true), 'string');
+  assert.equal(typeof billing.editPayment(r.db, r.payment, { amount: 22, payerName: 'X', note: '', date: p.payment.date, editedBy: 'Admin' }, true), 'string');
+});
+
+test('anular devuelve el saldo a favor como estaba antes del pago', () => {
+  const p = pay(db({ credits: { 'A-1': 12 } }), 40); // 12 + 40 = noviembre y dic (44), quedan 8
+  const r = billing.voidPayment(p.db, p.payment, { reason: 'Error', voidedBy: 'Admin' }, true);
+  assert.equal(r.db.credits['A-1'], 12);
+  assert.equal(r.db.charges.length, 0);
+  assert.equal(typeof billing.voidPayment(p.db, p.payment, { reason: ' ', voidedBy: 'Admin' }, true), 'string'); // sin motivo no
+});
+
+test('estado de cuenta e ingresos no cuentan los recibos anulados', () => {
+  const p = pay(db({ charges: [charge('A-1', '2026-10')] }), 22);
+  const r = billing.voidPayment(p.db, p.payment, { reason: 'Error', voidedBy: 'Admin' }, true);
+  assert.equal(reports.statement(r.db, 'A-1').at(-1).balance, 22);
+  assert.equal(reports.financialSummary(r.db, '2026-10', '2026-10').income, 0);
+});
+
 test('búsqueda de casas por código, etiqueta o nombre', () => {
   const c14 = { ...house('C-14'), owner: { name: 'Juan Manuel Guzmán', phone: '', email: '', dui: '' } };
   const c1 = house('C-1');

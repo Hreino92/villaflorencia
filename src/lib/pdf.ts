@@ -299,9 +299,9 @@ export function receiptPDF(db: DB, p: Payment): File {
   doc.setTextColor(...BRAND);
   doc.text(String(p.receiptNo).padStart(6, '0'), w - M - 21, 44.3, { align: 'center' });
 
-  // Monto destacado
+  // Monto destacado (en rojo y con sello "ANULADO" si el recibo se anuló)
   y += 2;
-  doc.setFillColor(...BRAND);
+  doc.setFillColor(...(p.voidedAt ? DANGER : BRAND));
   doc.roundedRect(M, y, w - M * 2, 22, 3, 3, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'normal');
@@ -310,12 +310,11 @@ export function receiptPDF(db: DB, p: Payment): File {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(20);
   doc.text(money(p.amount), M + 6, y + 17);
-  // Sello "PAGADO"
   doc.setDrawColor(255, 255, 255);
   doc.setLineWidth(0.6);
   doc.roundedRect(w - M - 34, y + 6, 28, 10, 2, 2, 'S');
   doc.setFontSize(11);
-  doc.text('PAGADO', w - M - 20, y + 13, { align: 'center' });
+  doc.text(p.voidedAt ? 'ANULADO' : 'PAGADO', w - M - 20, y + 13, { align: 'center' });
   y += 29;
 
   // Datos
@@ -358,8 +357,17 @@ export function receiptPDF(db: DB, p: Payment): File {
   const pending = houseDebt(db, house.id);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.setTextColor(...(pending > 0 ? DANGER : BRAND));
-  doc.text(pending > 0 ? `Saldo pendiente de la casa al ${fmtDate(localISODate())}: ${money(pending)}` : `La casa está al día al ${fmtDate(localISODate())}. ¡Gracias!`, M, y);
+  if (p.voidedAt) {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...DANGER);
+    const lines = doc.splitTextToSize(`RECIBO ANULADO el ${fmtDateTime(p.voidedAt)} por ${p.voidedBy ?? 'administración'}. Motivo: ${p.voidReason ?? ''}. No tiene validez como comprobante de pago.`, w - M * 2);
+    doc.text(lines, M, y);
+    y += (lines.length - 1) * 4;
+    doc.setFont('helvetica', 'normal');
+  } else {
+    doc.setTextColor(...(pending > 0 ? DANGER : BRAND));
+    doc.text(pending > 0 ? `Saldo pendiente de la casa al ${fmtDate(localISODate())}: ${money(pending)}` : `La casa está al día al ${fmtDate(localISODate())}. ¡Gracias!`, M, y);
+  }
   if (p.note) {
     doc.setTextColor(...MUTED);
     doc.text(`Nota: ${p.note}`, M, y + 5);
@@ -376,6 +384,13 @@ export function receiptPDF(db: DB, p: Payment): File {
   doc.setFontSize(7.5);
   doc.setTextColor(...MUTED);
   doc.text('Firma y sello de administración', w - M - 25, sy + 4, { align: 'center' });
+  if (p.voidedAt) {
+    // Marca de agua grande para que el recibo no pueda pasar por válido.
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(54);
+    doc.setTextColor(248, 180, 180);
+    doc.text('ANULADO', w / 2, 150, { align: 'center', angle: 35 });
+  }
   footer(doc, `Verificación: ${p.id}`);
   return pdfFile(doc, `Recibo-${p.receiptNo}-${house.poligono}${house.lote}.pdf`);
 }

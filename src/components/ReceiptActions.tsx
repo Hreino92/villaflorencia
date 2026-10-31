@@ -36,6 +36,7 @@ export default function ReceiptActions({ db, payment, allowSend = true }: { db: 
         <button className="btn btn-secondary btn-sm" onClick={async () => { const p = await pdf(); p.openFile(p.receiptPDF(db, payment)); }}>Ver recibo</button>
         <button className="btn btn-secondary btn-sm" onClick={async () => { const p = await pdf(); p.downloadFile(p.receiptPDF(db, payment)); }}>Descargar</button>
         {allowSend &&
+          !payment.voidedAt &&
           targets.map((t) =>
             t.person.phone ? (
               <button key={t.relation} className="btn btn-whatsapp btn-sm" onClick={() => send(t.person.phone, t.person.name)}>

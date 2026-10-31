@@ -56,8 +56,8 @@ export default function MyAccount() {
               {payments.map((p) => (
                 <li key={p.id} className="py-3">
                   <div className="mb-2 flex justify-between text-sm">
-                    <span><b>Recibo {String(p.receiptNo).padStart(6, '0')}</b> · {fmtDate(p.date)}</span>
-                    <span className="font-semibold">{money(p.amount)}</span>
+                    <span><b>Recibo {String(p.receiptNo).padStart(6, '0')}</b> · {fmtDate(p.date)}{p.voidedAt && <b className="ml-2 text-red-700">ANULADO</b>}</span>
+                    <span className="font-semibold">{p.voidedAt ? <s className="text-slate-400">{money(p.amount)}</s> : money(p.amount)}</span>
                   </div>
                   <ReceiptActions db={db} payment={p} allowSend={false} />
                 </li>

@@ -28,7 +28,7 @@ import {
 } from 'firebase/firestore';
 import type { Charge, Config, DB, House, Payment, Relation, Role, Session, User } from './types';
 import { auth, creatorAuth, fs } from './firebase';
-import { applyPayment, compareHouses, editPayment, openingChangeError, runAutomations } from './billing';
+import { applyPayment, compareHouses, editPayment, openingChangeError, runAutomations, validPayments, voidPayment } from './billing';
 import { defaultConfig, createSeed } from './seed';
 import { addDays, localISODate } from './dates';
 
@@ -472,12 +472,22 @@ export function registerPayment(input: Parameters<typeof applyPayment>[1]): Prom
 }
 
 /** Corrige un pago ya registrado (monto, quién pagó, fecha o nota); el recibo conserva su número. */
-export function updatePayment(id: string, houseId: string, input: Parameters<typeof editPayment>[2]): Promise<Payment> {
-  // El administrador tiene todos los pagos cargados: así se sabe si hay uno posterior de la misma casa.
-  const mine = state.db.payments.filter((p) => p.houseId === houseId);
+/** ¿Es el último pago vigente de la casa? (el administrador tiene todos los pagos cargados; los anulados no cuentan) */
+function isLatestPayment(id: string, houseId: string): boolean {
+  const mine = validPayments(state.db.payments).filter((p) => p.houseId === houseId);
   const target = mine.find((p) => p.id === id);
-  const isLatest = !!target && mine.every((p) => p.receiptNo <= target.receiptNo);
+  return !!target && mine.every((p) => p.receiptNo <= target.receiptNo);
+}
+
+export function updatePayment(id: string, houseId: string, input: Parameters<typeof editPayment>[2]): Promise<Payment> {
+  const isLatest = isLatestPayment(id, houseId);
   return paymentTransaction(houseId, id, (before, old) => editPayment(before, old!, input, isLatest));
+}
+
+/** Anula un recibo: deshace lo que aplicó y lo deja marcado como anulado. */
+export function voidReceipt(id: string, houseId: string, input: Parameters<typeof voidPayment>[2]): Promise<Payment> {
+  const isLatest = isLatestPayment(id, houseId);
+  return paymentTransaction(houseId, id, (before, old) => voidPayment(before, old!, input, isLatest));
 }
 
 export interface HouseImport {

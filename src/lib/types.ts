@@ -55,6 +55,9 @@ export interface Payment {
   creditUsed?: number; // saldo a favor anterior que este pago consumió (pagos anteriores: no lo tienen = 0)
   editedAt?: string; // si se corrigió: cuándo y quién (los pagos anteriores no lo tienen)
   editedBy?: string;
+  voidedAt?: string; // si se anuló: cuándo, quién y por qué (ya no cuenta como pago)
+  voidedBy?: string;
+  voidReason?: string;
 }
 
 export interface NotificationLog {
