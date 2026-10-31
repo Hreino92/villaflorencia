@@ -16,6 +16,7 @@ const STATUS: Record<string, { fill: string; font: string; label: string }> = {
   pendiente: { fill: 'FFFEF3C7', font: 'FF92400E', label: 'Pendiente' },
   parcial: { fill: 'FFE0F2FE', font: 'FF0369A1', label: 'Parcial' },
   vencido: { fill: 'FFFEE2E2', font: 'FFB91C1C', label: 'Mora' },
+  adelantado: { fill: 'FFEDE9FE', font: 'FF5B21B6', label: 'Adelantado' },
   'sin cargo': { fill: 'FFFFFFFF', font: 'FF94A3B8', label: '-' },
 };
 
@@ -192,7 +193,7 @@ export async function housesXLSX(db: DB, from: string, to: string, today: string
     wb,
     db,
     'Casas',
-    'Estado de pagos de todas las casas',
+    'Meses pagados por casa',
     rangeLabel(from, to),
     [
       { header: 'Casa', width: 22 },
@@ -204,6 +205,7 @@ export async function housesXLSX(db: DB, from: string, to: string, today: string
       { header: 'Pagado', width: 14, money: true },
       { header: 'Pendiente', width: 14, money: true },
       { header: 'Deuda total', width: 14, money: true },
+      { header: 'Meses adelantados', width: 12 },
     ],
     rows.map((r) => {
       const who = r.house.tenant && r.house.notifyTo === 'tenant' ? r.house.tenant : r.house.owner;
@@ -217,6 +219,7 @@ export async function housesXLSX(db: DB, from: string, to: string, today: string
         r.paid,
         r.pending,
         r.totalDebt,
+        r.monthsAhead || '',
       ];
     }),
     [
@@ -229,6 +232,7 @@ export async function housesXLSX(db: DB, from: string, to: string, today: string
       sum(col(first + 1), rows.length, rows.reduce((s, r) => s + r.paid, 0)),
       sum(col(first + 2), rows.length, rows.reduce((s, r) => s + r.pending, 0)),
       sum(col(first + 3), rows.length, rows.reduce((s, r) => s + r.totalDebt, 0)),
+      '',
     ],
   );
   rows.forEach((r, ri) => {

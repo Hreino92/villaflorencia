@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { update, useDB, useSession, useToday } from '../../lib/store';
 import { houseLabel } from '../../lib/billing';
 import { addMonths, capitalize, fmtDate, localISODate, money, periodLabel, periodOf, round2 } from '../../lib/dates';
-import { financialSummary, housesInRange, moraList, periodsBetween, rangeLabel } from '../../lib/reports';
+import { financialSummary, housesInRange, moraList, periodsBetween, rangeLabel, type CellStatus, type HouseRangeRow } from '../../lib/reports';
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS, type Expense } from '../../lib/types';
 import { Empty, Field, Modal, PageTitle, Stat } from '../../components/ui';
 
@@ -27,9 +27,11 @@ export default function Reports() {
   const expenses = (s?.expenseList ?? []).filter((e) => !category || e.category === category).slice().reverse();
 
   function quick(months: number | 'year') {
-    setTo(current);
+    // "Este año" llega hasta diciembre, para ver en el Gantt los meses pagados por adelantado.
+    setTo(months === 'year' ? `${current.slice(0, 4)}-12` : current);
     setFrom(months === 'year' ? `${current.slice(0, 4)}-01` : addMonths(current, -(months - 1)));
   }
+  const maxMonth = addMonths(current, 12);
 
   /** Genera un archivo (PDF o Excel) mostrando "Generando…" mientras tanto. */
   async function run(key: string, make: () => Promise<File>, open = false) {
@@ -66,10 +68,10 @@ export default function Reports() {
 
       <div className="card mb-6 flex flex-wrap items-end gap-3">
         <Field label="Desde">
-          <input className="input" type="month" value={from} max={current} onChange={(e) => e.target.value && setFrom(e.target.value)} />
+          <input className="input" type="month" value={from} max={maxMonth} onChange={(e) => e.target.value && setFrom(e.target.value)} />
         </Field>
         <Field label="Hasta">
-          <input className="input" type="month" value={to} max={current} onChange={(e) => e.target.value && setTo(e.target.value)} />
+          <input className="input" type="month" value={to} max={maxMonth} onChange={(e) => e.target.value && setTo(e.target.value)} />
         </Field>
         <div className="flex flex-wrap gap-2">
           <button className="btn btn-secondary btn-sm" onClick={() => quick(1)}>Este mes</button>
@@ -95,15 +97,22 @@ export default function Reports() {
         </>
       )}
 
+      {valid && (
+        <div className="card mb-6">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="font-bold">Meses pagados por casa</h2>
+              <p className="text-xs text-slate-500">{rangeLabel(from, to)}. Para ver los meses adelantados, incluye meses futuros en el rango (por ejemplo, "Este año").</p>
+            </div>
+            <Buttons id="houses" pdf={async () => (await lib()).housesPDF(db, from, to, today)} xlsx={async () => (await excel()).housesXLSX(db, from, to, today)} />
+          </div>
+          <HouseGantt rows={houses} current={current} />
+        </div>
+      )}
+
       <div className="mb-6 grid gap-4 md:grid-cols-2">
         <ReportCard title="Informe financiero" text={`Ingresos contra gastos de ${valid ? rangeLabel(from, to) : 'el rango'}, con gráficos, gastos por categoría y el detalle de recibos y gastos.`}>
           <Buttons id="fin" pdf={async () => (await lib()).financialPDF(db, from, to)} xlsx={async () => (await excel()).financialXLSX(db, from, to)} />
-        </ReportCard>
-        <ReportCard
-          title="Todas las casas"
-          text={valid ? `Cuota de cada casa mes por mes (${rangeLabel(from, to)}): pagada, parcial, pendiente o en mora. ${houses.filter((h) => h.pending > 0).length} de ${houses.length} casas con saldo en el período.` : 'Estado de pago de cada casa mes por mes.'}
-        >
-          <Buttons id="houses" pdf={async () => (await lib()).housesPDF(db, from, to, today)} xlsx={async () => (await excel()).housesXLSX(db, from, to, today)} />
         </ReportCard>
         <ReportCard title="Casas en mora" text={`Situación al ${fmtDate(today)}: ${mora.length} casas, ${money(mora.reduce((t, r) => t + r.amount, 0))} vencido. No depende del rango.`}>
           <Buttons id="mora" pdf={async () => (await lib()).moraPDF(db, today)} xlsx={async () => (await excel()).moraXLSX(db, today)} />
@@ -164,6 +173,89 @@ export default function Reports() {
       </div>
 
       {editing && <ExpenseForm expense={editing} onClose={() => setEditing(null)} />}
+    </>
+  );
+}
+
+// Cada estado lleva color y símbolo: se distingue aunque no se perciban bien los colores.
+const CELL: Record<CellStatus, { cls: string; mark: string; label: string }> = {
+  pagado: { cls: 'bg-emerald-600 text-white', mark: '✓', label: 'Pagado' },
+  adelantado: { cls: 'bg-violet-600 text-white', mark: '»', label: 'Pagado por adelantado' },
+  parcial: { cls: 'bg-sky-200 text-sky-950', mark: '½', label: 'Abono parcial' },
+  pendiente: { cls: 'bg-white text-slate-500 border border-slate-300', mark: '·', label: 'Pendiente (aún no vence)' },
+  vencido: { cls: 'bg-red-700 text-white', mark: '!', label: 'En mora' },
+  'sin cargo': { cls: 'bg-slate-100 text-slate-300', mark: '', label: 'Sin cuota registrada' },
+};
+const OVERALL = {
+  'al día': 'text-emerald-800',
+  adelantado: 'text-violet-800',
+  mora: 'text-red-700',
+} as const;
+
+/** Informe tipo Gantt: una fila por casa, una celda por mes. */
+function HouseGantt({ rows, current }: { rows: HouseRangeRow[]; current: string }) {
+  const [only, setOnly] = useState<'todas' | HouseRangeRow['overall']>('todas');
+  const periods = rows[0]?.cells.map((c) => c.period) ?? [];
+  const shown = rows.filter((r) => only === 'todas' || r.overall === only);
+  const count = (o: HouseRangeRow['overall']) => rows.filter((r) => r.overall === o).length;
+
+  return (
+    <>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {(['todas', 'al día', 'adelantado', 'mora'] as const).map((o) => (
+          <button key={o} className={`btn btn-sm ${only === o ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setOnly(o)}>
+            {o === 'todas' ? `Todas (${rows.length})` : o === 'al día' ? `Al día (${count(o)})` : o === 'adelantado' ? `Con meses adelantados (${count(o)})` : `En mora (${count(o)})`}
+          </button>
+        ))}
+      </div>
+      <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-slate-600">
+        {(['pagado', 'adelantado', 'parcial', 'pendiente', 'vencido'] as const).map((k) => (
+          <li key={k} className="flex items-center gap-1.5">
+            <span className={`flex h-4 w-5 items-center justify-center rounded-[3px] text-[10px] font-bold ${CELL[k].cls}`}>{CELL[k].mark}</span>
+            {CELL[k].label}
+          </li>
+        ))}
+      </ul>
+      <div className="max-h-[70vh] overflow-auto rounded-lg border border-slate-200">
+        <table className="w-full border-separate border-spacing-0 text-[13px]">
+          <thead className="sticky top-0 z-10 bg-white">
+            <tr>
+              <th className="sticky left-0 z-20 bg-white px-2 py-2 text-left font-semibold text-slate-500">Casa</th>
+              {periods.map((p) => (
+                <th key={p} className={`px-0.5 py-2 text-center text-[12px] font-semibold ${p === current ? 'text-slate-900' : 'text-slate-500'}`}>
+                  {capitalize(periodLabel(p).slice(0, 3))} {p.slice(2, 4)}
+                </th>
+              ))}
+              <th className="px-2 py-2 text-left font-semibold text-slate-500">Situación</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((r) => (
+              <tr key={r.house.id}>
+                <td className="sticky left-0 bg-white px-2 py-1 whitespace-nowrap">
+                  <div className="font-semibold">{houseLabel(r.house).replace('Polígono ', 'Pol. ')}</div>
+                  <div className="max-w-40 truncate text-xs text-slate-500">{r.house.owner.name}</div>
+                </td>
+                {r.cells.map((c) => (
+                  <td key={c.period} className="px-0.5 py-1">
+                    <div
+                      title={`${houseLabel(r.house)}, ${periodLabel(c.period)}: ${CELL[c.status].label}`}
+                      className={`flex h-7 min-w-8 items-center justify-center rounded-[4px] text-xs font-bold ${CELL[c.status].cls}`}
+                    >
+                      <span aria-hidden="true">{CELL[c.status].mark}</span>
+                      <span className="sr-only">{periodLabel(c.period)}: {CELL[c.status].label}</span>
+                    </div>
+                  </td>
+                ))}
+                <td className={`px-2 py-1 text-xs font-semibold whitespace-nowrap ${OVERALL[r.overall]}`}>
+                  {r.overall === 'mora' ? `En mora (${money(r.totalDebt)})` : r.overall === 'adelantado' ? `${r.monthsAhead} ${r.monthsAhead === 1 ? 'mes' : 'meses'} adelantado${r.monthsAhead === 1 ? '' : 's'}` : 'Al día'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {shown.length === 0 && <p className="p-4 text-center text-sm text-slate-500">No hay casas en este grupo.</p>}
+      </div>
     </>
   );
 }

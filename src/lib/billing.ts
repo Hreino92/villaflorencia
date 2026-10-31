@@ -87,12 +87,17 @@ export function runAutomations(db: DB, today: string): DB {
   return { ...db, charges, credits };
 }
 
-/** Registra un pago en efectivo, lo aplica a los cargos más antiguos y asigna el número de recibo. */
+/**
+ * Registra un pago en efectivo y asigna el número de recibo. El dinero (pago + saldo a favor que ya tenía la casa)
+ * cubre primero lo que debe, de lo más antiguo a lo más nuevo; después, meses completos adelantados;
+ * lo que no completa una cuota queda como saldo a favor.
+ */
 export function applyPayment(
   db: DB,
   input: { houseId: string; amount: number; payerName: string; receivedBy: string; note: string; date: string },
 ): { db: DB; payment: Payment } {
-  let left = round2(input.amount);
+  const creditUsed = round2(db.credits[input.houseId] ?? 0);
+  let left = round2(input.amount + creditUsed);
   const updated = new Map<string, Charge>();
   const allocations: Payment['allocations'] = [];
   for (const c of openChargesOf(db, input.houseId)) {
@@ -101,6 +106,23 @@ export function applyPayment(
     updated.set(c.id, { ...c, paid: round2(c.paid + take) });
     allocations.push({ chargeId: c.id, description: c.description, amount: round2(take) });
     left = round2(left - take);
+  }
+
+  // Meses adelantados: se crean ya pagados, con la cuota de hoy (si la cuota sube después, conservan este precio).
+  const house = db.houses.find((h) => h.id === input.houseId);
+  const fee = house ? feeFor(db, house) : 0;
+  const created: Charge[] = [];
+  if (fee > 0) {
+    const taken = new Set(db.charges.filter((c) => c.houseId === input.houseId && c.kind === 'monthly').map((c) => c.period));
+    const today = periodOf(input.date);
+    let p = db.config.startPeriod > today ? db.config.startPeriod : today;
+    while (left >= fee) {
+      while (taken.has(p)) p = addMonths(p, 1);
+      created.push({ id: `${input.houseId}-${p}`, houseId: input.houseId, kind: 'monthly', period: p, description: `Cuota ${periodLabel(p)}`, amount: fee, dueDate: dueDateFor(p, db.config.dueDay), paid: fee });
+      allocations.push({ chargeId: `${input.houseId}-${p}`, description: `Cuota ${periodLabel(p)} (adelantada)`, amount: fee });
+      taken.add(p);
+      left = round2(left - fee);
+    }
   }
   const payment: Payment = {
     id: `pay-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -113,15 +135,18 @@ export function applyPayment(
     note: input.note,
     allocations,
     credit: left,
+    creditUsed,
   };
+  // El saldo a favor anterior ya entró en el cálculo: el que queda es el sobrante.
   const credits = { ...db.credits };
-  if (left > 0) credits[input.houseId] = round2((credits[input.houseId] ?? 0) + left);
+  if (left > 0) credits[input.houseId] = left;
+  else delete credits[input.houseId];
   return {
     payment,
     db: {
       ...db,
       config: { ...db.config, nextReceiptNo: db.config.nextReceiptNo + 1 },
-      charges: db.charges.map((c) => updated.get(c.id) ?? c),
+      charges: [...db.charges.map((c) => updated.get(c.id) ?? c), ...created],
       payments: [...db.payments, payment],
       credits,
     },
@@ -136,15 +161,19 @@ export function editPayment(
   db: DB,
   old: Payment,
   input: { amount: number; payerName: string; note: string; date: string; editedBy: string },
+  isLatest: boolean, // ¿es el último pago de la casa?
 ): { db: DB; payment: Payment } | string {
-  // Si el saldo a favor que dejó ya se aplicó a una cuota nueva, deshacerlo dejaría esa cuota pagada con dinero que ya no existe.
-  if (round2(db.credits[old.houseId] ?? 0) < old.credit) {
-    return 'Este pago dejó saldo a favor que ya se aplicó a una cuota posterior, así que no se puede corregir. Registra la diferencia como un pago nuevo.';
+  // Con saldo a favor de por medio, un pago posterior o una cuota nueva pudo haber usado ese dinero:
+  // deshacerlo dejaría cuotas pagadas con dinero que ya no existe.
+  const touchesCredit = old.credit > 0 || (old.creditUsed ?? 0) > 0;
+  if (touchesCredit && (!isLatest || round2(db.credits[old.houseId] ?? 0) < old.credit)) {
+    return 'Este pago usó o dejó saldo a favor que ya se aplicó después (en otro pago o en una cuota nueva), así que no se puede corregir. Registra la diferencia como un pago nuevo.';
   }
   const back = new Map<string, number>();
   for (const a of old.allocations) back.set(a.chargeId, round2((back.get(a.chargeId) ?? 0) + a.amount));
+  // Se devuelve el saldo a favor como estaba antes del pago.
   const credits = { ...db.credits };
-  credits[old.houseId] = round2((credits[old.houseId] ?? 0) - old.credit);
+  credits[old.houseId] = round2((credits[old.houseId] ?? 0) - old.credit + (old.creditUsed ?? 0));
   if (credits[old.houseId] <= 0) delete credits[old.houseId];
   const undone: DB = {
     ...db,
@@ -155,9 +184,16 @@ export function editPayment(
   };
   const r = applyPayment(undone, { ...input, houseId: old.houseId, receivedBy: old.receivedBy });
   const payment: Payment = { ...r.payment, id: old.id, editedAt: new Date().toISOString(), editedBy: input.editedBy };
+  // Meses que el pago original creó como adelantados y que con el monto nuevo ya no se pagan: se quitan.
+  const prepaid = new Set(old.allocations.filter((a) => a.description.endsWith('(adelantada)')).map((a) => a.chargeId));
   return {
     payment,
-    db: { ...r.db, config: db.config, payments: db.payments.map((p) => (p.id === old.id ? payment : p)) },
+    db: {
+      ...r.db,
+      config: db.config,
+      charges: r.db.charges.filter((c) => !(prepaid.has(c.id) && c.paid === 0)),
+      payments: db.payments.map((p) => (p.id === old.id ? payment : p)),
+    },
   };
 }
 

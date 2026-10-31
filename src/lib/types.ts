@@ -32,6 +32,7 @@ export interface Charge {
   amount: number;
   dueDate: string; // YYYY-MM-DD
   paid: number;
+  paidBeforeSystem?: boolean; // mes que ya estaba pagado según el registro anterior (sin recibo en la app)
 }
 
 export interface Allocation {
@@ -50,7 +51,8 @@ export interface Payment {
   receivedBy: string;
   note: string;
   allocations: Allocation[];
-  credit: number; // excedente que queda a favor
+  credit: number; // saldo a favor de la casa después de este pago
+  creditUsed?: number; // saldo a favor anterior que este pago consumió (pagos anteriores: no lo tienen = 0)
   editedAt?: string; // si se corrigió: cuándo y quién (los pagos anteriores no lo tienen)
   editedBy?: string;
 }

@@ -437,11 +437,13 @@ function paymentTransaction(
       .filter((s) => s.exists())
       .map((s) => s.data() as Charge);
     const credit = await tx.get(creditRef);
+    const house = await tx.get(doc(fs, 'houses', houseId)); // su cuota decide cuántos meses adelantados cubre
     const oldSnap = paymentId ? await tx.get(doc(fs, 'payments', paymentId)) : null;
     if (oldSnap && !oldSnap.exists()) throw new Error('El pago ya no existe.');
     const old = (oldSnap?.data() as Payment | undefined) ?? null;
     const before: DB = {
       ...emptyDB(cfg.data() as Config),
+      houses: house.exists() ? [house.data() as House] : [],
       charges,
       payments: old ? [old] : [],
       credits: credit.exists() ? { [houseId]: (credit.data() as { amount: number }).amount } : {},
@@ -453,8 +455,13 @@ function paymentTransaction(
     for (const c of after.charges) {
       if (c !== charges.find((x) => x.id === c.id)) tx.set(doc(fs, 'charges', c.id), c);
     }
+    // Meses adelantados que una corrección dejó sin pagar.
+    for (const c of charges) if (!after.charges.some((x) => x.id === c.id)) tx.delete(doc(fs, 'charges', c.id));
     tx.set(doc(fs, 'payments', payment.id), payment);
-    if (after.credits[houseId] !== before.credits[houseId]) tx.set(creditRef, { amount: after.credits[houseId] ?? 0 });
+    if (after.credits[houseId] !== before.credits[houseId]) {
+      if (after.credits[houseId]) tx.set(creditRef, { amount: after.credits[houseId] });
+      else if (credit.exists()) tx.delete(creditRef);
+    }
     return payment;
   });
 }
@@ -466,7 +473,11 @@ export function registerPayment(input: Parameters<typeof applyPayment>[1]): Prom
 
 /** Corrige un pago ya registrado (monto, quién pagó, fecha o nota); el recibo conserva su número. */
 export function updatePayment(id: string, houseId: string, input: Parameters<typeof editPayment>[2]): Promise<Payment> {
-  return paymentTransaction(houseId, id, (before, old) => editPayment(before, old!, input));
+  // El administrador tiene todos los pagos cargados: así se sabe si hay uno posterior de la misma casa.
+  const mine = state.db.payments.filter((p) => p.houseId === houseId);
+  const target = mine.find((p) => p.id === id);
+  const isLatest = !!target && mine.every((p) => p.receiptNo <= target.receiptNo);
+  return paymentTransaction(houseId, id, (before, old) => editPayment(before, old!, input, isLatest));
 }
 
 export interface HouseImport {
@@ -522,6 +533,39 @@ export async function importHouses(data: HouseImport): Promise<void> {
   };
   set({ db: next });
   await commit(diff(prev, next));
+}
+
+/** Lee el archivo de meses pagados antes del sistema. Devuelve las cuotas o un mensaje de error. */
+export function parsePaidHistory(text: string): Charge[] | string {
+  let d: { format?: string; charges?: Charge[] };
+  try {
+    d = JSON.parse(text);
+  } catch {
+    return 'El archivo no es un JSON válido.';
+  }
+  if (d.format !== 'villaflorencia-paid-history-v1' || !Array.isArray(d.charges)) return 'Este archivo no es de meses pagados.';
+  for (const c of d.charges) {
+    if (!c?.id || !c.houseId || !/^\d{4}-\d{2}$/.test(c.period) || !(c.amount > 0) || c.paid !== c.amount || c.paidBeforeSystem !== true) {
+      return `Mes pagado con datos incompletos: ${JSON.stringify(c).slice(0, 80)}`;
+    }
+  }
+  return d.charges;
+}
+
+/**
+ * Solo AGREGA los meses pagados antes del sistema: no borra ni cambia nada.
+ * Se salta los de casas que no existen y los meses que la casa ya tiene registrados (pagados o no).
+ */
+export async function addPaidHistory(charges: Charge[]): Promise<number> {
+  const prev = state.db;
+  const houses = new Set(prev.houses.map((h) => h.id));
+  const taken = new Set(prev.charges.map((c) => `${c.houseId}|${c.period}`));
+  const add = charges.filter((c) => houses.has(c.houseId) && !taken.has(`${c.houseId}|${c.period}`));
+  if (!add.length) return 0;
+  const next: DB = { ...prev, charges: [...prev.charges, ...add] };
+  set({ db: next });
+  await commit(diff(prev, next));
+  return add.length;
 }
 
 /** Configuración inicial: crea la cuenta del primer administrador y la residencial. */

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { registerPayment, updatePayment, useDB, useSession, useToday } from '../../lib/store';
-import { houseDebt, houseLabel, openChargesOf, overdueDebt, pendingOf } from '../../lib/billing';
+import { applyPayment, houseDebt, houseLabel, openChargesOf, overdueDebt, pendingOf } from '../../lib/billing';
 import { fmtDate, fmtDateTime, localISODate, money } from '../../lib/dates';
 import type { Payment } from '../../lib/types';
 import { Empty, Field, Modal, PageTitle } from '../../components/ui';
@@ -98,11 +98,13 @@ function RegisterPayment({ onClose, onDone }: { onClose: () => void; onDone: (p:
   const house = db.houses.find((h) => h.id === houseId);
   const open = house ? openChargesOf(db, house.id) : [];
   const debt = house ? houseDebt(db, house.id) : 0;
+  const credit = house ? db.credits[house.id] ?? 0 : 0;
   const [amount, setAmount] = useState('');
   const [payer, setPayer] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [preview, setPreview] = useState<Payment | null>(null);
   const session = useSession()!;
 
   function pickHouse(id: string) {
@@ -123,10 +125,16 @@ function RegisterPayment({ onClose, onDone }: { onClose: () => void; onDone: (p:
     const now = new Date();
     const time = now.toTimeString().slice(0, 8);
     const date = db.config.simulatedToday ? `${today}T${time}` : `${localISODate(now)}T${time}`;
+    const input = { houseId: house.id, amount: value, payerName: payer || house.owner.name, receivedBy: session.name, note, date };
+    // Primero se muestra cómo se aplicará (deudas, meses adelantados, saldo a favor) y el administrador confirma.
+    if (!preview) {
+      setPreview(applyPayment(db, input).payment);
+      return;
+    }
     setBusy(true);
     setError('');
     try {
-      const payment = await registerPayment({ houseId: house.id, amount: value, payerName: payer || house.owner.name, receivedBy: session.name, note, date });
+      const payment = await registerPayment(input);
       onDone(payment);
     } catch (err) {
       console.error(err);
@@ -139,7 +147,7 @@ function RegisterPayment({ onClose, onDone }: { onClose: () => void; onDone: (p:
     <Modal title="Registrar pago en efectivo" onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <Field label="Casa">
-          <select className="input" value={houseId} onChange={(e) => pickHouse(e.target.value)} required>
+          <select className="input" value={houseId} onChange={(e) => { pickHouse(e.target.value); setPreview(null); }} required>
             <option value="">Selecciona una casa…</option>
             {db.houses.map((h) => (
               <option key={h.id} value={h.id}>
@@ -154,7 +162,9 @@ function RegisterPayment({ onClose, onDone }: { onClose: () => void; onDone: (p:
           <>
             <div className="rounded-lg bg-slate-50 p-3 text-sm">
               {open.length === 0 ? (
-                <p className="text-emerald-700">La casa está al día. El pago quedará como saldo a favor.</p>
+                <p className="text-emerald-700">
+                  La casa está al día{credit > 0 && ` y tiene ${money(credit)} a favor`}. Cada cuota completa que alcance se aplica a los meses siguientes; lo que no complete una cuota queda a favor.
+                </p>
               ) : (
                 <>
                   <p className="mb-1 font-semibold">Pendiente ({money(debt)}, de lo cual {money(overdueDebt(db, house.id, today))} en mora):</p>
@@ -172,7 +182,7 @@ function RegisterPayment({ onClose, onDone }: { onClose: () => void; onDone: (p:
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Monto recibido (USD)">
-                <input className="input text-lg font-semibold" type="number" min={0.01} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+                <input className="input text-lg font-semibold" type="number" min={0.01} step="0.01" value={amount} onChange={(e) => { setAmount(e.target.value); setPreview(null); }} required />
               </Field>
               <Field label="Pagado por">
                 <input className="input" list="payers" value={payer} onChange={(e) => setPayer(e.target.value)} required />
@@ -187,10 +197,29 @@ function RegisterPayment({ onClose, onDone }: { onClose: () => void; onDone: (p:
             </Field>
           </>
         )}
+        {preview && (
+          <div className="rounded-lg border-2 border-emerald-600 bg-emerald-50 p-3 text-sm">
+            <p className="mb-2 font-semibold">Así se aplicará el pago de {money(preview.amount)}:</p>
+            <ul className="space-y-0.5">
+              {preview.allocations.map((a) => (
+                <li key={a.chargeId} className="flex justify-between gap-2">
+                  <span className={a.description.endsWith('(adelantada)') ? 'font-semibold text-violet-800' : ''}>{a.description}</span>
+                  <span>{money(a.amount)}</span>
+                </li>
+              ))}
+              {(preview.creditUsed ?? 0) > 0 && (
+                <li className="flex justify-between gap-2 text-slate-600"><span>Menos saldo a favor que ya tenía</span><span>−{money(preview.creditUsed!)}</span></li>
+              )}
+              {preview.credit > 0 && (
+                <li className="flex justify-between gap-2 text-emerald-800"><span>Queda a favor</span><span>{money(preview.credit)}</span></li>
+              )}
+            </ul>
+          </div>
+        )}
         {error && <p className="rounded-md bg-red-50 p-2 text-sm text-red-700">{error}</p>}
         <div className="flex justify-end gap-2">
-          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" disabled={!house || busy}>{busy ? 'Registrando…' : 'Registrar y generar recibo'}</button>
+          <button type="button" className="btn btn-secondary" onClick={preview ? () => setPreview(null) : onClose}>{preview ? 'Cambiar datos' : 'Cancelar'}</button>
+          <button className="btn btn-primary" disabled={!house || busy}>{busy ? 'Registrando…' : preview ? 'Confirmar y generar recibo' : 'Revisar pago'}</button>
         </div>
       </form>
     </Modal>

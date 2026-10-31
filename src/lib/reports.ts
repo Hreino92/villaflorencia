@@ -1,5 +1,5 @@
 import type { DB, Expense, House, Payment } from './types';
-import { chargesOf, chargeStatus, houseDebt, houseLabel, overdueChargesOf, pendingOf, type ChargeStatus } from './billing';
+import { chargesOf, chargeStatus, feeFor, houseDebt, houseLabel, overdueChargesOf, pendingOf, type ChargeStatus } from './billing';
 import { addMonths, capitalize, periodLabel, periodOf, round2 } from './dates';
 
 export function paymentsInPeriod(db: DB, period: string): Payment[] {
@@ -51,7 +51,9 @@ export interface StatementRow {
 export function statement(db: DB, houseId: string): StatementRow[] {
   const events: { date: string; concept: string; charge: number; payment: number; order: number }[] = [];
   for (const c of chargesOf(db, houseId)) {
-    events.push({ date: c.kind === 'monthly' ? `${c.period}-01` : `${c.period}-01`, concept: c.description, charge: c.amount, payment: 0, order: 0 });
+    events.push({ date: `${c.period}-01`, concept: c.description, charge: c.amount, payment: 0, order: 0 });
+    // Meses pagados según el registro anterior: no tienen recibo en la app, el abono se muestra aquí.
+    if (c.paidBeforeSystem) events.push({ date: `${c.period}-01`, concept: 'Pagado antes del sistema', charge: 0, payment: c.paid, order: 1 });
   }
   for (const p of db.payments.filter((x) => x.houseId === houseId)) {
     events.push({ date: p.date.slice(0, 10), concept: `Pago en efectivo - Recibo No. ${p.receiptNo}`, charge: 0, payment: p.amount, order: 1 });
@@ -112,32 +114,56 @@ export function financialSummary(db: DB, from: string, to: string): FinancialSum
   };
 }
 
+export type CellStatus = ChargeStatus | 'adelantado' | 'sin cargo';
+
 export interface HouseRangeRow {
   house: House;
-  cells: { period: string; amount: number; paid: number; status: ChargeStatus | 'sin cargo' }[];
+  cells: { period: string; amount: number; paid: number; status: CellStatus }[];
   billed: number;
   paid: number;
   pending: number;
   totalDebt: number; // incluye saldos anteriores y meses fuera del rango
+  monthsAhead: number; // meses futuros ya cubiertos (pagados o por su saldo a favor)
+  overall: 'mora' | 'adelantado' | 'al día';
 }
 
-/** Situación de cada casa, mes por mes, en el rango. */
+/**
+ * Situación de cada casa, mes por mes, en el rango (el informe tipo Gantt).
+ * Un mes futuro ya pagado es "adelantado". Si la casa tiene saldo a favor, los meses futuros sin cuota
+ * que ese saldo alcanza a cubrir también se muestran como adelantados (sin sumarlos a lo facturado).
+ */
 export function housesInRange(db: DB, from: string, to: string, today: string): HouseRangeRow[] {
   const periods = periodsBetween(from, to);
+  const current = periodOf(today);
   return db.houses.map((house) => {
     const mine = db.charges.filter((c) => c.houseId === house.id);
+    const byPeriod = (p: string) => mine.filter((c) => c.period === p);
+
+    // Meses futuros que el saldo a favor alcanza a cubrir, en orden.
+    const fee = feeFor(db, house);
+    const covered = new Set<string>();
+    let credit = db.credits[house.id] ?? 0;
+    for (let p = addMonths(current, 1); fee > 0 && credit >= fee && p <= addMonths(current, 120); p = addMonths(p, 1)) {
+      if (byPeriod(p).length) continue;
+      covered.add(p);
+      credit = round2(credit - fee);
+    }
+
     const cells = periods.map((period) => {
       // Todas las cuotas del mes: la mensual y las de saldo anterior (las importadas son de este tipo).
-      const cs = mine.filter((c) => c.period === period);
-      if (!cs.length) return { period, amount: 0, paid: 0, status: 'sin cargo' as const };
+      const cs = byPeriod(period);
+      if (!cs.length) return { period, amount: 0, paid: 0, status: (covered.has(period) ? 'adelantado' : 'sin cargo') as CellStatus };
       const amount = round2(cs.reduce((s, c) => s + c.amount, 0));
       const paid = round2(cs.reduce((s, c) => s + c.paid, 0));
       const dueDate = cs.map((c) => c.dueDate).sort()[0];
-      return { period, amount, paid, status: chargeStatus({ ...cs[0], amount, paid, dueDate }, today) };
+      const status: CellStatus = period > current && paid >= amount ? 'adelantado' : chargeStatus({ ...cs[0], amount, paid, dueDate }, today);
+      return { period, amount, paid, status };
     });
     const billed = round2(cells.reduce((s, c) => s + c.amount, 0));
     const paid = round2(cells.reduce((s, c) => s + c.paid, 0));
-    return { house, cells, billed, paid, pending: round2(billed - paid), totalDebt: houseDebt(db, house.id) };
+    const monthsAhead = mine.filter((c) => c.kind === 'monthly' && c.period > current && c.paid >= c.amount).length + covered.size;
+    const overall = overdueChargesOf(db, house.id, today).length ? 'mora' : monthsAhead > 0 ? 'adelantado' : 'al día';
+    return { house, cells, billed, paid, pending: round2(billed - paid), totalDebt: houseDebt(db, house.id), monthsAhead, overall };
   });
 }
 

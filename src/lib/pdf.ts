@@ -23,6 +23,7 @@ const STATUS: Record<string, { fill: RGB; text: RGB; label: string }> = {
   pendiente: { fill: [254, 243, 199], text: [146, 64, 14], label: 'Pend.' },
   parcial: { fill: [224, 242, 254], text: [3, 105, 161], label: 'Parcial' },
   vencido: { fill: [254, 226, 226], text: [185, 28, 28], label: 'Mora' },
+  adelantado: { fill: [237, 233, 254], text: [91, 33, 182], label: 'Adel.' },
   'sin cargo': { fill: [255, 255, 255], text: [148, 163, 184], label: '-' },
 };
 
@@ -345,7 +346,9 @@ export function receiptPDF(db: DB, p: Payment): File {
     head: [['Concepto', 'Monto']],
     body: [
       ...p.allocations.map((a) => [a.description, money(a.amount)]),
-      ...(p.credit > 0 ? [['Saldo a favor para próximos meses', money(p.credit)]] : []),
+      // Así los conceptos suman lo recibido en efectivo.
+      ...((p.creditUsed ?? 0) > 0 ? [['Menos saldo a favor que ya tenía', money(-p.creditUsed!)]] : []),
+      ...(p.credit > 0 ? [['Queda como saldo a favor', money(p.credit)]] : []),
     ],
     foot: [['Total', money(p.amount)]],
     columnStyles: { 1: { halign: 'right', cellWidth: 28 } },
@@ -495,21 +498,22 @@ export function housesPDF(db: DB, from: string, to: string, today: string): File
   const rows = housesInRange(db, from, to, today);
   const periods = rows[0]?.cells.map((c) => c.period) ?? [];
   const doc = new jsPDF({ orientation: periods.length > 4 ? 'landscape' : 'portrait' });
-  let y = header(doc, db, 'Reporte de casas', 'Estado de pagos de todas las casas', rangeLabel(from, to));
+  let y = header(doc, db, 'Pagos por casa', 'Meses pagados por casa', rangeLabel(from, to));
   const billed = rows.reduce((s, r) => s + r.billed, 0);
   const paid = rows.reduce((s, r) => s + r.paid, 0);
-  const upToDate = rows.filter((r) => r.pending <= 0).length;
+  const count = (o: string) => rows.filter((r) => r.overall === o).length;
   y = tiles(doc, y, [
-    { label: 'Casas', value: String(rows.length), hint: `${upToDate} al día en el período` },
-    { label: 'Facturado', value: money(billed) },
-    { label: 'Cobrado', value: money(paid), hint: `${billed ? Math.round((paid / billed) * 100) : 0}% de lo facturado`, color: INCOME },
-    { label: 'Pendiente', value: money(billed - paid), color: DANGER },
+    { label: 'Al día', value: String(count('al día')), hint: `de ${rows.length} casas`, color: INCOME },
+    { label: 'Con meses adelantados', value: String(count('adelantado')), color: [124, 58, 237] },
+    { label: 'En mora', value: String(count('mora')), color: DANGER },
+    // Incluye los meses pagados antes del sistema: es lo pagado, no solo lo cobrado con recibo en la app.
+    { label: 'Pagado en el período', value: money(paid), hint: `de ${money(billed)} en cuotas` },
   ]);
 
   // Leyenda de estados (texto + color, nunca solo color)
   doc.setFontSize(7.5);
   let lx = M;
-  for (const k of ['pagado', 'parcial', 'pendiente', 'vencido'] as const) {
+  for (const k of ['pagado', 'adelantado', 'parcial', 'pendiente', 'vencido'] as const) {
     const st = STATUS[k];
     doc.setFillColor(...st.fill);
     doc.roundedRect(lx, y - 3.2, 14, 4.6, 1, 1, 'F');
@@ -518,7 +522,7 @@ export function housesPDF(db: DB, from: string, to: string, today: string): File
     doc.text(st.label, lx + 7, y, { align: 'center' });
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...MUTED);
-    const desc = { pagado: 'cuota pagada', parcial: 'abono parcial', pendiente: 'aún no vence', vencido: 'vencida sin pagar' }[k];
+    const desc = { pagado: 'cuota pagada', adelantado: 'mes futuro ya pagado', parcial: 'abono parcial', pendiente: 'aún no vence', vencido: 'vencida sin pagar' }[k];
     doc.text(desc, lx + 16, y);
     lx += 17 + doc.getTextWidth(desc) + 6;
   }
@@ -526,17 +530,17 @@ export function housesPDF(db: DB, from: string, to: string, today: string): File
 
   table(doc, {
     startY: y,
-    head: [['Casa', 'Responsable', ...periods.map((p) => capitalize(periodLabel(p).slice(0, 3)) + ' ' + p.slice(2, 4)), 'Facturado', 'Pagado', 'Pendiente', 'Deuda total']],
+    head: [['Casa', 'Responsable', ...periods.map((p) => capitalize(periodLabel(p).slice(0, 3)) + ' ' + p.slice(2, 4)), 'Meses adel.', 'Pagado', 'Pendiente', 'Deuda total']],
     body: rows.map((r) => [
       houseLabel(r.house).replace('Polígono ', 'Pol. '),
       r.house.tenant && r.house.notifyTo === 'tenant' ? r.house.tenant.name : r.house.owner.name,
       ...r.cells.map((c) => STATUS[c.status].label),
-      money(r.billed),
+      r.monthsAhead ? String(r.monthsAhead) : '',
       money(r.paid),
       money(r.pending),
       money(r.totalDebt),
     ]),
-    foot: [['Total', '', ...periods.map(() => ''), money(billed), money(paid), money(billed - paid), money(rows.reduce((s, r) => s + r.totalDebt, 0))]],
+    foot: [['Total', '', ...periods.map(() => ''), '', money(paid), money(billed - paid), money(rows.reduce((s, r) => s + r.totalDebt, 0))]],
     styles: { fontSize: periods.length > 8 ? 6.5 : 7.5, cellPadding: 1.6, textColor: INK, lineColor: LINE, halign: 'left' },
     headStyles: { fillColor: BRAND, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7, halign: 'center' },
     didParseCell: (d: CellHookData) => {
@@ -552,7 +556,7 @@ export function housesPDF(db: DB, from: string, to: string, today: string): File
       if (d.section === 'body' && ci === 2 + periods.length + 2 && rows[d.row.index].pending > 0) d.cell.styles.textColor = DANGER;
     },
   });
-  footer(doc, `${db.config.name} · Reporte de casas · ${rangeLabel(from, to)} · Deuda total incluye saldos anteriores`);
+  footer(doc, `${db.config.name} · Pagos por casa · ${rangeLabel(from, to)} · Deuda total incluye saldos anteriores`);
   return pdfFile(doc, `Reporte-casas-${from}${from === to ? '' : `_a_${to}`}.pdf`);
 }
 

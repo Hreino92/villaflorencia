@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { importHouses, parseHouseImport, update, useDB, type HouseImport } from '../../lib/store';
+import { addPaidHistory, importHouses, parseHouseImport, parsePaidHistory, update, useDB, type HouseImport } from '../../lib/store';
+import type { Charge } from '../../lib/types';
 import { money, periodLabel } from '../../lib/dates';
 import { usingEmulators } from '../../lib/firebase';
 import { DEFAULT_TEMPLATES } from '../../lib/seed';
@@ -17,6 +18,7 @@ const TEMPLATE_INFO: { key: keyof Config['templates']; label: string; vars: stri
 function ImportHouses() {
   const db = useDB();
   const [data, setData] = useState<HouseImport | null>(null);
+  const [paid, setPaid] = useState<Charge[] | null>(null);
   const [fileName, setFileName] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -25,13 +27,38 @@ function ImportHouses() {
   async function pick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     setData(null);
+    setPaid(null);
     setError('');
     setDone('');
     if (!file) return;
     setFileName(file.name);
-    const result = parseHouseImport(await file.text());
+    const text = await file.text();
+    // El mismo selector acepta los dos archivos: casas (reemplaza todo) o meses pagados (solo agrega).
+    if (text.includes('"villaflorencia-paid-history-v1"')) {
+      const result = parsePaidHistory(text);
+      if (typeof result === 'string') setError(result);
+      else setPaid(result);
+      return;
+    }
+    const result = parseHouseImport(text);
     if (typeof result === 'string') setError(result);
     else setData(result);
+  }
+
+  async function addPaid() {
+    if (!paid) return;
+    setBusy(true);
+    setError('');
+    try {
+      const n = await addPaidHistory(paid);
+      setDone(n ? `Listo: se agregaron ${n} meses pagados. Revisa el informe "Meses pagados por casa" en Reportes.` : 'No había meses nuevos que agregar: ya estaban registrados.');
+      setPaid(null);
+    } catch (err) {
+      console.error(err);
+      setError('No se pudieron agregar todos los meses. Vuelve a intentarlo con el mismo archivo: los que ya se guardaron no se duplican.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function run() {
@@ -56,9 +83,20 @@ function ImportHouses() {
 
   return (
     <div className="card mb-6 max-w-3xl">
-      <h2 className="font-bold">Importar casas</h2>
-      <p className="mb-3 text-sm text-slate-500">Reemplaza las casas actuales por las del archivo de importación (por ejemplo, casas-villa-florencia.json).</p>
+      <h2 className="font-bold">Importar casas o meses pagados</h2>
+      <p className="mb-3 text-sm text-slate-500">
+        Con el archivo de casas (casas-villa-florencia.json) se reemplazan las casas actuales. Con el de meses pagados (meses-pagados-villa-florencia.json) solo se agregan los meses que ya estaban pagados antes del sistema.
+      </p>
       <input type="file" accept=".json,application/json" onChange={pick} className="text-sm" aria-label="Archivo de importación" />
+      {paid && (
+        <div className="mt-4 rounded-[10px] bg-emerald-50 p-4 text-sm">
+          <p className="mb-2 font-semibold">{fileName}</p>
+          <p className="mb-3">
+            Se agregarán hasta {paid.length} meses pagados en {new Set(paid.map((c) => c.houseId)).size} casas, marcados como "pagado antes del sistema". No se borra ni se cambia nada: los meses que una casa ya tenga registrados se saltan.
+          </p>
+          <button className="btn btn-primary" disabled={busy} onClick={addPaid}>{busy ? 'Agregando…' : 'Agregar meses pagados'}</button>
+        </div>
+      )}
       {data && (
         <div className="mt-4 rounded-[10px] bg-slate-50 p-4 text-sm">
           <p className="mb-2 font-semibold">{fileName}</p>
