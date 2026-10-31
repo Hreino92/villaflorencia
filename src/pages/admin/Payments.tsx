@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { registerPayment, updatePayment, useDB, useSession, useToday } from '../../lib/store';
-import { applyPayment, houseDebt, houseLabel, openChargesOf, overdueDebt, pendingOf } from '../../lib/billing';
+import { applyPayment, houseDebt, houseLabel, houseMatches, openChargesOf, overdueDebt, pendingOf } from '../../lib/billing';
 import { fmtDate, fmtDateTime, localISODate, money } from '../../lib/dates';
 import type { Payment } from '../../lib/types';
 import { Empty, Field, Modal, PageTitle } from '../../components/ui';
 import ReceiptActions from '../../components/ReceiptActions';
+import HouseSelect from '../../components/HouseSelect';
 
 export default function Payments() {
   const db = useDB();
@@ -21,7 +22,7 @@ export default function Payments() {
         .filter((p) => {
           if (!term) return true;
           const h = db.houses.find((x) => x.id === p.houseId);
-          return String(p.receiptNo).includes(term) || p.payerName.toLowerCase().includes(term) || (h && houseLabel(h).toLowerCase().includes(term));
+          return String(p.receiptNo).includes(term) || p.payerName.toLowerCase().includes(term) || (h ? houseMatches(h, term) : false);
         })
         .slice(0, 100),
     [db, term],
@@ -30,7 +31,7 @@ export default function Payments() {
   return (
     <>
       <PageTitle title="Pagos y recibos" subtitle="Pagos en efectivo recibidos por la administración" actions={<button className="btn btn-primary" onClick={() => setRegistering(true)}>Registrar pago</button>} />
-      <input className="input mb-4 max-w-sm" placeholder="Buscar por recibo, casa o nombre" value={q} onChange={(e) => setQ(e.target.value)} />
+      <input className="input mb-4 max-w-sm" placeholder="Buscar: recibo, C14 o nombre" value={q} onChange={(e) => setQ(e.target.value)} />
       <div className="card overflow-x-auto p-0">
         <table className="table">
           <thead><tr><th>Recibo</th><th>Fecha</th><th>Casa</th><th>Pagado por</th><th>Aplicado a</th><th className="text-right">Monto</th><th></th></tr></thead>
@@ -147,15 +148,7 @@ function RegisterPayment({ onClose, onDone }: { onClose: () => void; onDone: (p:
     <Modal title="Registrar pago en efectivo" onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <Field label="Casa">
-          <select className="input" value={houseId} onChange={(e) => { pickHouse(e.target.value); setPreview(null); }} required>
-            <option value="">Selecciona una casa…</option>
-            {db.houses.map((h) => (
-              <option key={h.id} value={h.id}>
-                {houseLabel(h)} · {h.owner.name}
-                {houseDebt(db, h.id) > 0 ? ` · debe ${money(houseDebt(db, h.id))}` : ''}
-              </option>
-            ))}
-          </select>
+          <HouseSelect houses={db.houses} value={houseId} onChange={(id) => { pickHouse(id); setPreview(null); }} required />
         </Field>
 
         {house && (

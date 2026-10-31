@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { update, useDB, useSession, useToday } from '../../lib/store';
-import { houseIdLabel } from '../../lib/billing';
+import { houseCode, houseIdLabel } from '../../lib/billing';
 import { fmtDate } from '../../lib/dates';
 import type { Visit } from '../../lib/types';
 
@@ -23,7 +23,14 @@ export default function Gate() {
 
   const todays = db.visits.filter((v) => v.date === today).sort((a, b) => Number(!!a.enteredAt) - Number(!!b.enteredAt) || a.visitorName.localeCompare(b.visitorName));
   const term = normalize(search.trim());
-  const found = term ? todays.filter((v) => normalize(v.visitorName).includes(term) || v.dui.replace(/\D/g, '').includes(term.replace(/\D/g, '') || '¬')) : todays;
+  const found = term
+    ? todays.filter(
+        (v) =>
+          normalize(v.visitorName).includes(term) ||
+          v.dui.replace(/\D/g, '').includes(term.replace(/\D/g, '') || '¬') ||
+          houseCode({ id: v.houseId }).toLowerCase().startsWith(term.replace(/[\s\-_.]/g, '')), // "C14": visitas de esa casa
+      )
+    : todays;
 
   function check(e: React.FormEvent) {
     e.preventDefault();
@@ -77,7 +84,7 @@ export default function Gate() {
           <h2 className="font-bold">Visitas de hoy ({fmtDate(today)})</h2>
           <span className="text-sm text-slate-500">{todays.filter((v) => v.enteredAt).length} de {todays.length} ingresaron</span>
         </div>
-        <input className="input mb-3" placeholder="Buscar por nombre o DUI" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input className="input mb-3" placeholder="Buscar: nombre, DUI o casa (C14)" value={search} onChange={(e) => setSearch(e.target.value)} />
         <ul className="divide-y divide-slate-100">
           {found.map((v) => {
             return (

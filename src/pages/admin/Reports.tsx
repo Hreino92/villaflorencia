@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { update, useDB, useSession, useToday } from '../../lib/store';
-import { houseLabel } from '../../lib/billing';
+import { houseLabel, houseMatches } from '../../lib/billing';
 import { addMonths, capitalize, fmtDate, localISODate, money, periodLabel, periodOf, round2 } from '../../lib/dates';
 import { financialSummary, housesInRange, moraList, periodsBetween, rangeLabel, type CellStatus, type HouseRangeRow } from '../../lib/reports';
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS, type Expense } from '../../lib/types';
 import { Empty, Field, Modal, PageTitle, Stat } from '../../components/ui';
+import HouseSelect from '../../components/HouseSelect';
 
 const MAX_MONTHS = 12;
 
@@ -119,11 +120,9 @@ export default function Reports() {
         </ReportCard>
         <ReportCard title="Estado de cuenta por casa" text="Historial completo de cargos y abonos de una casa.">
           <div className="flex flex-wrap items-center gap-2">
-            <select className="input max-w-56" value={house?.id ?? ''} onChange={(e) => setHouseId(e.target.value)}>
-              {db.houses.map((h) => (
-                <option key={h.id} value={h.id}>{houseLabel(h)}</option>
-              ))}
-            </select>
+            <div className="min-w-64 flex-1">
+              <HouseSelect houses={db.houses} value={house?.id ?? ''} onChange={(id) => id && setHouseId(id)} />
+            </div>
             {house && <Buttons id="stmt" pdf={async () => (await lib()).statementPDF(db, house, today)} xlsx={async () => (await excel()).statementXLSX(db, house)} />}
           </div>
         </ReportCard>
@@ -195,13 +194,15 @@ const OVERALL = {
 /** Informe tipo Gantt: una fila por casa, una celda por mes. */
 function HouseGantt({ rows, current }: { rows: HouseRangeRow[]; current: string }) {
   const [only, setOnly] = useState<'todas' | HouseRangeRow['overall']>('todas');
+  const [q, setQ] = useState('');
   const periods = rows[0]?.cells.map((c) => c.period) ?? [];
-  const shown = rows.filter((r) => only === 'todas' || r.overall === only);
+  const shown = rows.filter((r) => (only === 'todas' || r.overall === only) && houseMatches(r.house, q));
   const count = (o: HouseRangeRow['overall']) => rows.filter((r) => r.overall === o).length;
 
   return (
     <>
       <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input className="input max-w-xs" placeholder="Buscar: C14, polígono o nombre" value={q} onChange={(e) => setQ(e.target.value)} />
         {(['todas', 'al día', 'adelantado', 'mora'] as const).map((o) => (
           <button key={o} className={`btn btn-sm ${only === o ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setOnly(o)}>
             {o === 'todas' ? `Todas (${rows.length})` : o === 'al día' ? `Al día (${count(o)})` : o === 'adelantado' ? `Con meses adelantados (${count(o)})` : `En mora (${count(o)})`}

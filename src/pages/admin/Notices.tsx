@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { update, useDB, useToday } from '../../lib/store';
-import { houseLabel, notificationQueue, type QueueItem } from '../../lib/billing';
+import { houseLabel, houseMatches, notificationQueue, type QueueItem } from '../../lib/billing';
 import { addDays, fmtDate, money } from '../../lib/dates';
 import { fillTemplate, openWhatsApp, waLink } from '../../lib/whatsapp';
 import type { DB } from '../../lib/types';
@@ -23,8 +23,9 @@ export default function Notices() {
   const today = useToday();
   const [filter, setFilter] = useState<'all' | 'advance' | 'overdue'>('all');
   const [showSent, setShowSent] = useState(false);
+  const [q, setQ] = useState('');
   const queue = notificationQueue(db, today);
-  const items = queue.filter((i) => (filter === 'all' || i.type === filter) && (showSent || !i.sent));
+  const items = queue.filter((i) => (filter === 'all' || i.type === filter) && (showSent || !i.sent) && houseMatches(i.house, q));
   const pending = queue.filter((i) => !i.sent);
   // Sin teléfono, WhatsApp se abriría sin destinatario y el aviso quedaría marcado como enviado sin serlo.
   const sendable = pending.filter((i) => i.person.phone);
@@ -55,6 +56,7 @@ export default function Notices() {
         <b> Enviar</b> se abre WhatsApp con el mensaje listo; solo presiona enviar en WhatsApp.
       </div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
+        <input className="input max-w-xs" placeholder="Buscar: C14, polígono o nombre" value={q} onChange={(e) => setQ(e.target.value)} />
         {(['all', 'advance', 'overdue'] as const).map((f) => (
           <button key={f} className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFilter(f)}>
             {f === 'all' ? 'Todos' : f === 'advance' ? 'Anticipados' : 'Mora'}

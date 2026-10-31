@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { createAccount, resetPassword, update, useDB, useSession } from '../../lib/store';
-import { houseLabel } from '../../lib/billing';
+import { houseLabel, houseMatches } from '../../lib/billing';
 import type { DB, Relation, Role, User } from '../../lib/types';
 import { Empty, Field, Modal, PageTitle } from '../../components/ui';
+import HouseSelect from '../../components/HouseSelect';
 
 const ROLE_LABEL: Record<Role, string> = { admin: 'Administrador', vigilante: 'Vigilante', residente: 'Residente' };
 const ROLE_STYLE: Record<Role, string> = {
@@ -22,7 +23,12 @@ export default function Users() {
 
   const term = q.trim().toLowerCase();
   const list = db.users
-    .filter((u) => (role === 'all' || u.role === role) && (!term || u.name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term)))
+    .filter((u) => {
+      if (role !== 'all' && u.role !== role) return false;
+      if (!term || u.name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term)) return true;
+      const h = u.houseId ? db.houses.find((x) => x.id === u.houseId) : undefined;
+      return h ? houseMatches(h, term) : false;
+    })
     .sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name));
 
   function toggleActive(u: User) {
@@ -49,7 +55,7 @@ export default function Users() {
         }
       />
       <div className="mb-4 flex flex-wrap gap-2">
-        <input className="input max-w-sm" placeholder="Buscar por nombre o correo" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="input max-w-sm" placeholder="Buscar: nombre, correo o casa (C14)" value={q} onChange={(e) => setQ(e.target.value)} />
         {(['all', 'admin', 'vigilante', 'residente'] as const).map((r) => (
           <button key={r} className={`btn btn-sm ${role === r ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setRole(r)}>
             {r === 'all' ? 'Todos' : ROLE_LABEL[r]}
@@ -158,12 +164,7 @@ function UserForm({ user, onClose }: { user: User; onClose: () => void }) {
         {u.role === 'residente' && (
           <div className="grid gap-3 rounded-lg bg-slate-50 p-3 sm:grid-cols-2">
             <Field label="Casa">
-              <select className="input" value={u.houseId ?? ''} onChange={(e) => fillFromHouse(e.target.value || undefined, u.relation ?? 'owner')} required>
-                <option value="">Selecciona…</option>
-                {db.houses.map((h) => (
-                  <option key={h.id} value={h.id}>{houseLabel(h)}</option>
-                ))}
-              </select>
+              <HouseSelect houses={db.houses} value={u.houseId ?? ''} onChange={(id) => fillFromHouse(id || undefined, u.relation ?? 'owner')} required />
             </Field>
             <Field label="Es">
               <select className="input" value={u.relation ?? 'owner'} onChange={(e) => fillFromHouse(u.houseId, e.target.value as Relation)}>

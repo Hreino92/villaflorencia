@@ -178,6 +178,21 @@ test('saldo anterior: se corrige o quita solo si no descuadra los recibos', () =
   assert.equal(err(opening({ paid: 66, paidBeforeSystem: true }), null), null); // pagado antes del sistema: se puede quitar
 });
 
+test('búsqueda de casas por código, etiqueta o nombre', () => {
+  const c14 = { ...house('C-14'), owner: { name: 'Juan Manuel Guzmán', phone: '', email: '', dui: '' } };
+  const c1 = house('C-1');
+  const b14 = house('B-14');
+  const m = billing.houseMatches;
+  for (const t of ['C14', 'c14', 'C-14', 'c 14', ' C14 ']) assert.equal(m(c14, t), true, t);
+  assert.equal(m(b14, 'C14'), false);
+  assert.equal(m(c1, 'C14'), false);
+  assert.equal(m(c14, 'C1'), true); // mientras se escribe
+  assert.equal(m(c14, 'Polígono C, Lote 14'), true);
+  assert.equal(m(c14, 'guzman'), true); // sin tilde
+  assert.equal(m(c14, ''), true);
+  assert.equal(billing.houseCode(c14), 'C14');
+});
+
 test('la etiqueta de la casa se arma desde su código', () => {
   assert.equal(billing.houseIdLabel('B-17'), 'Polígono B, Lote 17');
 });

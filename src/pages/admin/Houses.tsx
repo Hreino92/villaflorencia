@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { changeOpeningCharge, update, useDB, useToday } from '../../lib/store';
-import { chargesOf, chargeStatus, compareHouses, feeFor, houseDebt, houseLabel, openingChangeError, overdueDebt, pendingOf } from '../../lib/billing';
+import { chargesOf, chargeStatus, compareHouses, feeFor, houseDebt, houseLabel, houseMatches, openingChangeError, overdueDebt, pendingOf } from '../../lib/billing';
 import { capitalize, fmtDate, money, periodLabel, periodOf } from '../../lib/dates';
 import type { Charge, House, Person, Who } from '../../lib/types';
 import { Field, Modal, PageTitle, StatusBadge } from '../../components/ui';
@@ -16,13 +16,7 @@ export default function Houses() {
   const [detail, setDetail] = useState<House | null>(null);
 
   const term = q.trim().toLowerCase();
-  const list = db.houses.filter(
-    (h) =>
-      !term ||
-      houseLabel(h).toLowerCase().includes(term) ||
-      h.owner.name.toLowerCase().includes(term) ||
-      h.tenant?.name.toLowerCase().includes(term),
-  );
+  const list = db.houses.filter((h) => houseMatches(h, term));
 
   function newHouse() {
     setEditing({ id: '', poligono: '', lote: 0, owner: emptyPerson(), tenant: null, notifyTo: 'owner', visitorCodeBy: 'owner', customFee: null, notes: '' });
@@ -31,7 +25,7 @@ export default function Houses() {
   return (
     <>
       <PageTitle title="Casas" subtitle={`${db.houses.length} casas registradas`} actions={<button className="btn btn-primary" onClick={newHouse}>Agregar casa</button>} />
-      <input className="input mb-4 max-w-sm" placeholder="Buscar por casa, propietario o inquilino" value={q} onChange={(e) => setQ(e.target.value)} />
+      <input className="input mb-4 max-w-sm" placeholder="Buscar: C14, polígono, propietario o inquilino" value={q} onChange={(e) => setQ(e.target.value)} />
       <div className="card overflow-x-auto p-0">
         <table className="table">
           <thead>

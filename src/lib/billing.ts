@@ -6,6 +6,22 @@ export const houseLabel = (h: House) => `Polígono ${h.poligono}, Lote ${h.lote}
 /** "A-12" → "Polígono A, Lote 12", sin leer la casa (el vigilante no tiene acceso a los datos de residentes). */
 export const houseIdLabel = (id: string) => id.replace(/^(.+)-(\d+)$/, 'Polígono $1, Lote $2');
 
+/** Código corto de la casa: Polígono C, Lote 14 → "C14". */
+export const houseCode = (h: { id: string }) => h.id.replace('-', '');
+
+const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+/**
+ * ¿La búsqueda encuentra esta casa? Por código ("C14", "c-14", "C 14"; "C1" ya muestra C1 y C10–C19),
+ * por "Polígono C, Lote 14" o por el nombre del propietario o inquilino.
+ */
+export function houseMatches(h: House, term: string): boolean {
+  const t = norm(term.trim());
+  if (!t) return true;
+  if (norm(houseCode(h)).startsWith(t.replace(/[\s\-_.]/g, ''))) return true;
+  return [houseLabel(h), h.owner.name, h.tenant?.name ?? ''].some((s) => norm(s).includes(t));
+}
+
 /** Orden natural: Polígono A lote 1, 2, …, 10; después Polígono B. */
 export const compareHouses = (a: House, b: House) => a.poligono.localeCompare(b.poligono) || a.lote - b.lote;
 
