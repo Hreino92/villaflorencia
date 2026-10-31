@@ -51,6 +51,8 @@ export interface Payment {
   note: string;
   allocations: Allocation[];
   credit: number; // excedente que queda a favor
+  editedAt?: string; // si se corrigió: cuándo y quién (los pagos anteriores no lo tienen)
+  editedBy?: string;
 }
 
 export interface NotificationLog {

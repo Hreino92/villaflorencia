@@ -361,6 +361,10 @@ export function receiptPDF(db: DB, p: Payment): File {
     doc.setTextColor(...MUTED);
     doc.text(`Nota: ${p.note}`, M, y + 5);
   }
+  if (p.editedAt) {
+    doc.setTextColor(...MUTED);
+    doc.text(`Recibo corregido el ${fmtDateTime(p.editedAt)} por ${p.editedBy ?? 'administración'}.`, M, y + (p.note ? 10 : 5));
+  }
 
   const sy = Math.max(y + 24, 175);
   doc.setDrawColor(...MUTED);

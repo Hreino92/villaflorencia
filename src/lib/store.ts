@@ -28,7 +28,7 @@ import {
 } from 'firebase/firestore';
 import type { Charge, Config, DB, House, Payment, Relation, Role, Session, User } from './types';
 import { auth, creatorAuth, fs } from './firebase';
-import { applyPayment, compareHouses, runAutomations } from './billing';
+import { applyPayment, compareHouses, editPayment, runAutomations } from './billing';
 import { defaultConfig, createSeed } from './seed';
 import { addDays, localISODate } from './dates';
 
@@ -419,33 +419,54 @@ export async function createAccount(input: {
 }
 
 /**
- * Registra un pago en una transacción: el número de recibo se toma del servidor,
- * así dos administradores cobrando al mismo tiempo nunca obtienen el mismo número.
+ * Cambia los pagos de una casa en una transacción: lee del servidor la configuración, las cuotas,
+ * el saldo a favor y (si se corrige) el pago original, así nunca se trabaja con datos viejos
+ * y dos administradores al mismo tiempo nunca obtienen el mismo número de recibo.
  */
-export async function registerPayment(input: Parameters<typeof applyPayment>[1]): Promise<Payment> {
-  const chargeIds = state.db.charges.filter((c) => c.houseId === input.houseId).map((c) => c.id);
+function paymentTransaction(
+  houseId: string,
+  paymentId: string | null,
+  compute: (before: DB, old: Payment | null) => { db: DB; payment: Payment } | string,
+): Promise<Payment> {
+  const chargeIds = state.db.charges.filter((c) => c.houseId === houseId).map((c) => c.id);
   return runTransaction(fs, async (tx) => {
     const cfgRef = doc(fs, 'config', 'general');
-    const creditRef = doc(fs, 'credits', input.houseId);
+    const creditRef = doc(fs, 'credits', houseId);
     const cfg = await tx.get(cfgRef);
     const charges = (await Promise.all(chargeIds.map((id) => tx.get(doc(fs, 'charges', id)))))
       .filter((s) => s.exists())
       .map((s) => s.data() as Charge);
     const credit = await tx.get(creditRef);
+    const oldSnap = paymentId ? await tx.get(doc(fs, 'payments', paymentId)) : null;
+    if (oldSnap && !oldSnap.exists()) throw new Error('El pago ya no existe.');
+    const old = (oldSnap?.data() as Payment | undefined) ?? null;
     const before: DB = {
       ...emptyDB(cfg.data() as Config),
       charges,
-      credits: credit.exists() ? { [input.houseId]: (credit.data() as { amount: number }).amount } : {},
+      payments: old ? [old] : [],
+      credits: credit.exists() ? { [houseId]: (credit.data() as { amount: number }).amount } : {},
     };
-    const { db: after, payment } = applyPayment(before, input);
-    tx.update(cfgRef, { nextReceiptNo: after.config.nextReceiptNo });
+    const result = compute(before, old);
+    if (typeof result === 'string') throw new Error(result);
+    const { db: after, payment } = result;
+    if (after.config.nextReceiptNo !== before.config.nextReceiptNo) tx.update(cfgRef, { nextReceiptNo: after.config.nextReceiptNo });
     for (const c of after.charges) {
       if (c !== charges.find((x) => x.id === c.id)) tx.set(doc(fs, 'charges', c.id), c);
     }
     tx.set(doc(fs, 'payments', payment.id), payment);
-    if (after.credits[input.houseId] !== before.credits[input.houseId]) tx.set(creditRef, { amount: after.credits[input.houseId] ?? 0 });
+    if (after.credits[houseId] !== before.credits[houseId]) tx.set(creditRef, { amount: after.credits[houseId] ?? 0 });
     return payment;
   });
+}
+
+/** Registra un pago en efectivo con el siguiente número de recibo. */
+export function registerPayment(input: Parameters<typeof applyPayment>[1]): Promise<Payment> {
+  return paymentTransaction(input.houseId, null, (before) => applyPayment(before, input));
+}
+
+/** Corrige un pago ya registrado (monto, quién pagó, fecha o nota); el recibo conserva su número. */
+export function updatePayment(id: string, houseId: string, input: Parameters<typeof editPayment>[2]): Promise<Payment> {
+  return paymentTransaction(houseId, id, (before, old) => editPayment(before, old!, input));
 }
 
 export interface HouseImport {

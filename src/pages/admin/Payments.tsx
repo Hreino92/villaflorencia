@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { registerPayment, useDB, useSession, useToday } from '../../lib/store';
+import { registerPayment, updatePayment, useDB, useSession, useToday } from '../../lib/store';
 import { houseDebt, houseLabel, openChargesOf, overdueDebt, pendingOf } from '../../lib/billing';
 import { fmtDate, fmtDateTime, localISODate, money } from '../../lib/dates';
 import type { Payment } from '../../lib/types';
@@ -11,6 +11,7 @@ export default function Payments() {
   const [q, setQ] = useState('');
   const [registering, setRegistering] = useState(false);
   const [done, setDone] = useState<Payment | null>(null);
+  const [editing, setEditing] = useState<Payment | null>(null);
 
   const term = q.trim().toLowerCase();
   const list = useMemo(
@@ -43,7 +44,7 @@ export default function Payments() {
                   <td className="whitespace-nowrap">{h ? houseLabel(h) : p.houseId}</td>
                   <td>{p.payerName}</td>
                   <td className="text-xs text-slate-500">{p.allocations.map((a) => a.description).join(', ')}{p.credit > 0 && ` + ${money(p.credit)} a favor`}</td>
-                  <td className="text-right font-semibold">{money(p.amount)}</td>
+                  <td className="text-right font-semibold">{money(p.amount)}{p.editedAt && <div className="text-xs font-normal text-amber-800">corregido</div>}</td>
                   <td><button className="btn btn-secondary btn-sm" onClick={() => setDone(p)}>Recibo</button></td>
                 </tr>
               );
@@ -68,9 +69,23 @@ export default function Payments() {
             <div><b>{money(done.amount)}</b> recibidos de {done.payerName}</div>
             <div className="text-slate-600">{fmtDateTime(done.date)} · {done.allocations.map((a) => a.description).join(', ')}</div>
             {done.credit > 0 && <div className="text-emerald-700">Quedan {money(done.credit)} a favor para el próximo mes.</div>}
+            {done.editedAt && <div className="text-amber-800">Corregido el {fmtDateTime(done.editedAt)} por {done.editedBy}.</div>}
           </div>
-          <ReceiptActions db={db} payment={done} />
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <ReceiptActions db={db} payment={done} />
+            <button className="btn btn-secondary btn-sm" onClick={() => { setEditing(done); setDone(null); }}>Editar pago</button>
+          </div>
         </Modal>
+      )}
+      {editing && (
+        <EditPaymentForm
+          payment={editing}
+          onClose={() => setEditing(null)}
+          onDone={(p) => {
+            setEditing(null);
+            setDone(p);
+          }}
+        />
       )}
     </>
   );
@@ -176,6 +191,71 @@ function RegisterPayment({ onClose, onDone }: { onClose: () => void; onDone: (p:
         <div className="flex justify-end gap-2">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
           <button className="btn btn-primary" disabled={!house || busy}>{busy ? 'Registrando…' : 'Registrar y generar recibo'}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function EditPaymentForm({ payment, onClose, onDone }: { payment: Payment; onClose: () => void; onDone: (p: Payment) => void }) {
+  const db = useDB();
+  const session = useSession()!;
+  const house = db.houses.find((h) => h.id === payment.houseId);
+  const [amount, setAmount] = useState(payment.amount.toFixed(2));
+  const [payer, setPayer] = useState(payment.payerName);
+  const [day, setDay] = useState(payment.date.slice(0, 10));
+  const [note, setNote] = useState(payment.note);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const value = Number(amount);
+    if (!(value > 0)) return setError('El monto debe ser mayor que cero.');
+    setBusy(true);
+    setError('');
+    try {
+      const updated = await updatePayment(payment.id, payment.houseId, {
+        amount: value,
+        payerName: payer.trim() || payment.payerName,
+        note,
+        date: `${day}${payment.date.slice(10)}`, // se corrige el día; se conserva la hora original
+        editedBy: session.name,
+      });
+      onDone(updated);
+    } catch (err) {
+      console.error(err);
+      // Los mensajes de la corrección (p. ej. saldo a favor ya usado) se muestran tal cual; el resto es de conexión.
+      const msg = err instanceof Error && !('code' in err) ? err.message : 'No se pudo guardar la corrección. Revisa tu conexión a internet e intenta de nuevo.';
+      setError(msg);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={`Editar recibo No. ${String(payment.receiptNo).padStart(6, '0')}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+          {house ? houseLabel(house) : payment.houseId}. El pago se vuelve a aplicar a las cuotas más antiguas con el monto nuevo. El recibo conserva su número y queda marcado como corregido.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Monto recibido (USD)">
+            <input className="input text-lg font-semibold" type="number" min={0.01} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+          </Field>
+          <Field label="Fecha del pago">
+            <input className="input" type="date" max={localISODate()} value={day} onChange={(e) => setDay(e.target.value)} required />
+          </Field>
+        </div>
+        <Field label="Pagado por">
+          <input className="input" value={payer} onChange={(e) => setPayer(e.target.value)} required />
+        </Field>
+        <Field label="Nota">
+          <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ej.: se corrigió el monto recibido" />
+        </Field>
+        {error && <p role="alert" className="rounded-md bg-red-50 p-2 text-sm text-red-700">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" disabled={busy}>{busy ? 'Guardando…' : 'Guardar corrección'}</button>
         </div>
       </form>
     </Modal>

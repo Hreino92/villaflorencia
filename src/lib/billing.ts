@@ -128,6 +128,39 @@ export function applyPayment(
   };
 }
 
+/**
+ * Corrige un pago: deshace lo que aplicó (cuotas y saldo a favor) y lo vuelve a aplicar con los datos nuevos.
+ * Conserva el id y el número de recibo. Devuelve un mensaje si no se puede corregir sin descuadrar cuentas.
+ */
+export function editPayment(
+  db: DB,
+  old: Payment,
+  input: { amount: number; payerName: string; note: string; date: string; editedBy: string },
+): { db: DB; payment: Payment } | string {
+  // Si el saldo a favor que dejó ya se aplicó a una cuota nueva, deshacerlo dejaría esa cuota pagada con dinero que ya no existe.
+  if (round2(db.credits[old.houseId] ?? 0) < old.credit) {
+    return 'Este pago dejó saldo a favor que ya se aplicó a una cuota posterior, así que no se puede corregir. Registra la diferencia como un pago nuevo.';
+  }
+  const back = new Map<string, number>();
+  for (const a of old.allocations) back.set(a.chargeId, round2((back.get(a.chargeId) ?? 0) + a.amount));
+  const credits = { ...db.credits };
+  credits[old.houseId] = round2((credits[old.houseId] ?? 0) - old.credit);
+  if (credits[old.houseId] <= 0) delete credits[old.houseId];
+  const undone: DB = {
+    ...db,
+    config: { ...db.config, nextReceiptNo: old.receiptNo }, // applyPayment toma el número de aquí: se conserva el del recibo
+    charges: db.charges.map((c) => (back.has(c.id) ? { ...c, paid: round2(c.paid - back.get(c.id)!) } : c)),
+    payments: db.payments.filter((p) => p.id !== old.id),
+    credits,
+  };
+  const r = applyPayment(undone, { ...input, houseId: old.houseId, receivedBy: old.receivedBy });
+  const payment: Payment = { ...r.payment, id: old.id, editedAt: new Date().toISOString(), editedBy: input.editedBy };
+  return {
+    payment,
+    db: { ...r.db, config: db.config, payments: db.payments.map((p) => (p.id === old.id ? payment : p)) },
+  };
+}
+
 export interface QueueItem {
   key: string;
   type: 'advance' | 'overdue';
