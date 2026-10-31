@@ -562,14 +562,19 @@ export function changeOpeningCharge(id: string, change: { amount: number; descri
   });
 }
 
-/** "Poner al día" una casa (herramienta temporal): da por pagado lo pendiente como ajuste, leyendo las cuotas del servidor. */
-export function settleHouse(houseId: string, by: string): Promise<number> {
+/**
+ * "Poner al día" una casa (herramienta temporal): da por pagado lo pendiente como ajuste y quita el saldo a favor,
+ * para que no quede ni deuda ni saldo a favor. Lee las cuotas y el saldo del servidor.
+ */
+export function settleHouse(houseId: string, by: string): Promise<void> {
   const ids = state.db.charges.filter((c) => c.houseId === houseId).map((c) => c.id);
   return runTransaction(fs, async (tx) => {
     const snaps = await Promise.all(ids.map((id) => tx.get(doc(fs, 'charges', id))));
+    const creditRef = doc(fs, 'credits', houseId);
+    const credit = await tx.get(creditRef);
     const changed = settleCharges(snaps.filter((s) => s.exists()).map((s) => s.data() as Charge), by, new Date().toISOString());
     for (const c of changed) tx.set(doc(fs, 'charges', c.id), c);
-    return changed.length;
+    if (credit.exists()) tx.delete(creditRef);
   });
 }
 

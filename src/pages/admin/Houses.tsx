@@ -195,10 +195,15 @@ export function HouseAccount({ house, onClose }: { house: House; onClose: () => 
   }
 
   const debt = houseDebt(db, house.id);
+  const credit = db.credits[house.id] ?? 0;
   const [settling, setSettling] = useState(false);
   async function settle() {
     setError('');
-    if (!confirm(`¿Poner al día ${houseLabel(house)}? Se darán por pagados ${money(debt)} pendientes como ajuste de administración, sin recibo y sin contar como ingreso.`)) return;
+    const what = [
+      debt > 0 && `se darán por pagados ${money(debt)} pendientes como ajuste de administración (sin recibo y sin contar como ingreso)`,
+      credit > 0 && `se quitará el saldo a favor de ${money(credit)}`,
+    ].filter(Boolean).join(' y ');
+    if (!confirm(`¿Poner al día ${houseLabel(house)}? ${what.charAt(0).toUpperCase()}${what.slice(1)}. Quedará sin deuda y sin saldo a favor.`)) return;
     setSettling(true);
     try {
       await settleHouse(house.id, session.name);
@@ -214,10 +219,11 @@ export function HouseAccount({ house, onClose }: { house: House; onClose: () => 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="text-sm">
           Saldo pendiente: <b className="text-red-600">{money(debt)}</b>
+          {credit > 0 && <span className="ml-3">Saldo a favor: <b className="text-emerald-700">{money(credit)}</b></span>}
         </div>
         <div className="flex flex-wrap gap-2">
           {/* Herramienta temporal (ALLOW_SET_UP_TO_DATE en billing.ts) */}
-          {ALLOW_SET_UP_TO_DATE && debt > 0 && (
+          {ALLOW_SET_UP_TO_DATE && (debt > 0 || credit > 0) && (
             <button className="btn btn-secondary text-amber-800" disabled={settling} onClick={settle}>{settling ? 'Ajustando…' : 'Poner al día'}</button>
           )}
           <button className="btn btn-secondary" onClick={async () => { const p = await import('../../lib/pdf'); p.openFile(p.statementPDF(db, house, today)); }}>Descargar PDF</button>
