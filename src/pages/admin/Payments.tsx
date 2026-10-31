@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { registerPayment, updatePayment, useDB, useSession, useToday, voidReceipt } from '../../lib/store';
+import { describeError, registerPayment, updatePayment, useDB, useSession, useToday, voidReceipt } from '../../lib/store';
 import { applyPayment, houseDebt, houseLabel, houseMatches, openChargesOf, overdueDebt, pendingOf } from '../../lib/billing';
 import { fmtDate, fmtDateTime, localISODate, money } from '../../lib/dates';
 import type { Payment } from '../../lib/types';
@@ -163,7 +163,7 @@ function RegisterPayment({ onClose, onDone }: { onClose: () => void; onDone: (p:
       onDone(payment);
     } catch (err) {
       console.error(err);
-      setError('No se pudo registrar el pago. Revisa tu conexión a internet e intenta de nuevo.');
+      setError(describeError(err));
       setBusy(false);
     }
   }
@@ -260,7 +260,7 @@ function VoidReceiptForm({ payment, onClose, onDone }: { payment: Payment; onClo
       onDone(await voidReceipt(payment.id, payment.houseId, { reason, voidedBy: session.name }));
     } catch (err) {
       console.error(err);
-      setError(err instanceof Error && !('code' in err) ? err.message : 'No se pudo anular. Revisa tu conexión a internet e intenta de nuevo.');
+      setError(describeError(err));
       setBusy(false);
     }
   }
@@ -324,9 +324,7 @@ function EditPaymentForm({ payment, onClose, onDone }: { payment: Payment; onClo
       onDone(updated);
     } catch (err) {
       console.error(err);
-      // Los mensajes de la corrección (p. ej. saldo a favor ya usado) se muestran tal cual; el resto es de conexión.
-      const msg = err instanceof Error && !('code' in err) ? err.message : 'No se pudo guardar la corrección. Revisa tu conexión a internet e intenta de nuevo.';
-      setError(msg);
+      setError(describeError(err));
       setBusy(false);
     }
   }

@@ -9,7 +9,9 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function profilePath() { return /databases/$(database)/documents/users/$(request.auth.uid); }
     function me() { return get(profilePath()).data; }
-    function active() { return signedIn() && exists(profilePath()) && me().active == true; }
+    // Solo get() (sin exists()): cada consulta cuenta para el límite de 20 por transacción.
+    // Sin perfil, get() da error y la regla niega el acceso, igual que antes.
+    function active() { return signedIn() && me().active == true; }
     function isAdmin() { return active() && me().role == 'admin'; }
     function isGuard() { return active() && me().role == 'vigilante'; }
     function isResident() { return active() && me().role == 'residente'; }

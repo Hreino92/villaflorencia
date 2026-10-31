@@ -212,14 +212,21 @@ export function editPayment(
   const undone = undoPayment(db, old, isLatest, 'corregir. Registra la diferencia como un pago nuevo');
   if (typeof undone === 'string') return undone;
   const r = applyPayment(
+    // Los meses adelantados se quitan antes de reaplicar: si quedaran en $0 se cobrarían como deuda y perderían
+    // la marca "(adelantada)", y una anulación posterior ya no sabría quitarlos.
     // applyPayment toma el número de recibo de la configuración: se conserva el del recibo original.
-    { ...undone, config: { ...db.config, nextReceiptNo: old.receiptNo }, payments: db.payments.filter((p) => p.id !== old.id) },
+    {
+      ...undone,
+      charges: dropUnpaidPrepaid(undone.charges, old),
+      config: { ...db.config, nextReceiptNo: old.receiptNo },
+      payments: db.payments.filter((p) => p.id !== old.id),
+    },
     { ...input, houseId: old.houseId, receivedBy: old.receivedBy },
   );
   const payment: Payment = { ...r.payment, id: old.id, editedAt: new Date().toISOString(), editedBy: input.editedBy };
   return {
     payment,
-    db: { ...r.db, config: db.config, charges: dropUnpaidPrepaid(r.db.charges, old), payments: db.payments.map((p) => (p.id === old.id ? payment : p)) },
+    db: { ...r.db, config: db.config, payments: db.payments.map((p) => (p.id === old.id ? payment : p)) },
   };
 }
 

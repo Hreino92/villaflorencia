@@ -194,6 +194,15 @@ test('anular un recibo devuelve las cuotas a pendiente y lo deja marcado', () =>
   assert.equal(typeof billing.editPayment(r.db, r.payment, { amount: 22, payerName: 'X', note: '', date: p.payment.date, editedBy: 'Admin' }, true), 'string');
 });
 
+test('corregir y después anular un pago adelantado no deja meses futuros como deuda', () => {
+  const p = pay(db(), 100); // nov, dic, ene, feb + 12
+  const e = billing.editPayment(p.db, p.payment, { amount: 44, payerName: 'X', note: '', date: p.payment.date, editedBy: 'Admin' }, true);
+  assert.ok(e.payment.allocations.every((a) => a.description.endsWith('(adelantada)')));
+  assert.deepEqual(e.db.charges.map((c) => c.period), ['2026-11', '2026-12']);
+  const v = billing.voidPayment(e.db, e.payment, { reason: 'Prueba', voidedBy: 'Admin' }, true);
+  assert.equal(v.db.charges.length, 0);
+});
+
 test('anular devuelve el saldo a favor como estaba antes del pago', () => {
   const p = pay(db({ credits: { 'A-1': 12 } }), 40); // 12 + 40 = noviembre y dic (44), quedan 8
   const r = billing.voidPayment(p.db, p.payment, { reason: 'Error', voidedBy: 'Admin' }, true);

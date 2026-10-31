@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { changeOpeningCharge, settleHouse, update, useDB, useSession, useToday } from '../../lib/store';
+import { changeOpeningCharge, describeError, settleHouse, update, useDB, useSession, useToday } from '../../lib/store';
 import { ALLOW_SET_UP_TO_DATE, chargesOf, chargeStatus, compareHouses, feeFor, houseDebt, houseLabel, houseMatches, openingChangeError, overdueDebt, pendingOf } from '../../lib/billing';
 import { capitalize, fmtDate, money, periodLabel, periodOf } from '../../lib/dates';
 import type { Charge, House, Person, Who } from '../../lib/types';
@@ -170,9 +170,7 @@ function HouseForm({ house, onClose }: { house: House; onClose: () => void }) {
   );
 }
 
-// Mensaje del error: los de la validación se muestran tal cual; los de Firebase (con code) son de conexión o permisos.
-const errorText = (err: unknown) =>
-  err instanceof Error && !('code' in err) ? err.message : 'No se pudo guardar el cambio. Revisa tu conexión a internet e intenta de nuevo.';
+const errorText = describeError;
 
 export function HouseAccount({ house, onClose }: { house: House; onClose: () => void }) {
   const db = useDB();

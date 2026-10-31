@@ -346,6 +346,18 @@ onAuthStateChanged(auth, (fbUser) => {
   );
 });
 
+/**
+ * Mensaje para la persona: los de validación de la app tal cual; los de Firebase según su código,
+ * mostrando el código cuando no es de conexión para poder diagnosticarlo.
+ */
+export function describeError(e: unknown): string {
+  if (e instanceof Error && !('code' in e)) return e.message;
+  const code = (e as { code?: string }).code ?? 'desconocido';
+  if (code === 'unavailable' || code === 'deadline-exceeded') return 'No hay conexión con el servidor. Revisa tu internet e intenta de nuevo.';
+  if (code === 'permission-denied') return 'El servidor rechazó la operación (permission-denied). Recarga la página e intenta de nuevo; si sigue, comparte este mensaje con soporte.';
+  return `No se pudo guardar (error: ${code}). Intenta de nuevo; si sigue, comparte este mensaje con soporte.`;
+}
+
 // ---------- Autenticación ----------
 
 function authMessage(e: unknown): string {
@@ -428,7 +440,14 @@ function paymentTransaction(
   paymentId: string | null,
   compute: (before: DB, old: Payment | null) => { db: DB; payment: Payment } | string,
 ): Promise<Payment> {
-  const chargeIds = state.db.charges.filter((c) => c.houseId === houseId).map((c) => c.id);
+  // Solo las cuotas que el pago puede tocar: las pendientes, las mensuales desde el mes actual
+  // (para no duplicar meses adelantados) y, al corregir o anular, las que el pago original pagó.
+  // Una transacción admite 20 verificaciones de reglas; leer todo el historial de la casa la hacía fallar.
+  const current = localISODate().slice(0, 7);
+  const touched = new Set(state.db.payments.find((p) => p.id === paymentId)?.allocations.map((a) => a.chargeId) ?? []);
+  const chargeIds = state.db.charges
+    .filter((c) => c.houseId === houseId && (c.amount - c.paid > 0 || (c.kind === 'monthly' && c.period >= current) || touched.has(c.id)))
+    .map((c) => c.id);
   return runTransaction(fs, async (tx) => {
     const cfgRef = doc(fs, 'config', 'general');
     const creditRef = doc(fs, 'credits', houseId);
@@ -567,7 +586,8 @@ export function changeOpeningCharge(id: string, change: { amount: number; descri
  * para que no quede ni deuda ni saldo a favor. Lee las cuotas y el saldo del servidor.
  */
 export function settleHouse(houseId: string, by: string): Promise<void> {
-  const ids = state.db.charges.filter((c) => c.houseId === houseId).map((c) => c.id);
+  // Solo las pendientes: leer todo el historial superaría el límite de verificaciones de una transacción.
+  const ids = state.db.charges.filter((c) => c.houseId === houseId && c.amount - c.paid > 0).map((c) => c.id);
   return runTransaction(fs, async (tx) => {
     const snaps = await Promise.all(ids.map((id) => tx.get(doc(fs, 'charges', id))));
     const creditRef = doc(fs, 'credits', houseId);
