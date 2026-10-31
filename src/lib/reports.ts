@@ -54,6 +54,7 @@ export function statement(db: DB, houseId: string): StatementRow[] {
     events.push({ date: `${c.period}-01`, concept: c.description, charge: c.amount, payment: 0, order: 0 });
     // Meses pagados según el registro anterior: no tienen recibo en la app, el abono se muestra aquí.
     if (c.paidBeforeSystem) events.push({ date: `${c.period}-01`, concept: 'Pagado antes del sistema', charge: 0, payment: c.paid, order: 1 });
+    if (c.adjustment) events.push({ date: (c.adjustedAt ?? `${c.period}-01`).slice(0, 10), concept: 'Ajuste: puesto al día por administración', charge: 0, payment: c.adjustment, order: 1 });
   }
   for (const p of validPayments(db.payments).filter((x) => x.houseId === houseId)) {
     events.push({ date: p.date.slice(0, 10), concept: `Pago en efectivo - Recibo No. ${p.receiptNo}`, charge: 0, payment: p.amount, order: 1 });

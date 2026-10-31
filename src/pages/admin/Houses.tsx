@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { changeOpeningCharge, update, useDB, useToday } from '../../lib/store';
-import { chargesOf, chargeStatus, compareHouses, feeFor, houseDebt, houseLabel, houseMatches, openingChangeError, overdueDebt, pendingOf } from '../../lib/billing';
+import { changeOpeningCharge, settleHouse, update, useDB, useSession, useToday } from '../../lib/store';
+import { ALLOW_SET_UP_TO_DATE, chargesOf, chargeStatus, compareHouses, feeFor, houseDebt, houseLabel, houseMatches, openingChangeError, overdueDebt, pendingOf } from '../../lib/billing';
 import { capitalize, fmtDate, money, periodLabel, periodOf } from '../../lib/dates';
 import type { Charge, House, Person, Who } from '../../lib/types';
 import { Field, Modal, PageTitle, StatusBadge } from '../../components/ui';
@@ -177,6 +177,7 @@ const errorText = (err: unknown) =>
 export function HouseAccount({ house, onClose }: { house: House; onClose: () => void }) {
   const db = useDB();
   const today = useToday();
+  const session = useSession()!;
   const charges = chargesOf(db, house.id).reverse();
   const [editing, setEditing] = useState<Charge | null>(null);
   const [error, setError] = useState('');
@@ -193,13 +194,34 @@ export function HouseAccount({ house, onClose }: { house: House; onClose: () => 
     }
   }
 
+  const debt = houseDebt(db, house.id);
+  const [settling, setSettling] = useState(false);
+  async function settle() {
+    setError('');
+    if (!confirm(`¿Poner al día ${houseLabel(house)}? Se darán por pagados ${money(debt)} pendientes como ajuste de administración, sin recibo y sin contar como ingreso.`)) return;
+    setSettling(true);
+    try {
+      await settleHouse(house.id, session.name);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setSettling(false);
+    }
+  }
+
   return (
     <Modal title={`Estado de cuenta: ${houseLabel(house)}`} onClose={onClose} wide>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="text-sm">
-          Saldo pendiente: <b className="text-red-600">{money(houseDebt(db, house.id))}</b>
+          Saldo pendiente: <b className="text-red-600">{money(debt)}</b>
         </div>
-        <button className="btn btn-secondary" onClick={async () => { const p = await import('../../lib/pdf'); p.openFile(p.statementPDF(db, house, today)); }}>Descargar PDF</button>
+        <div className="flex flex-wrap gap-2">
+          {/* Herramienta temporal (ALLOW_SET_UP_TO_DATE en billing.ts) */}
+          {ALLOW_SET_UP_TO_DATE && debt > 0 && (
+            <button className="btn btn-secondary text-amber-800" disabled={settling} onClick={settle}>{settling ? 'Ajustando…' : 'Poner al día'}</button>
+          )}
+          <button className="btn btn-secondary" onClick={async () => { const p = await import('../../lib/pdf'); p.openFile(p.statementPDF(db, house, today)); }}>Descargar PDF</button>
+        </div>
       </div>
       {error && <p role="alert" className="mb-3 rounded-md bg-red-50 p-2 text-sm text-red-700">{error}</p>}
       <div className="max-h-[60vh] overflow-y-auto">

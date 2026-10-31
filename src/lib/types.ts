@@ -33,6 +33,9 @@ export interface Charge {
   dueDate: string; // YYYY-MM-DD
   paid: number;
   paidBeforeSystem?: boolean; // mes que ya estaba pagado según el registro anterior (sin recibo en la app)
+  adjustment?: number; // parte que se dio por pagada con "Poner al día" (sin recibo, no es ingreso)
+  adjustedAt?: string;
+  adjustedBy?: string;
 }
 
 export interface Allocation {

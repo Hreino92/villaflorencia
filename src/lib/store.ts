@@ -28,7 +28,7 @@ import {
 } from 'firebase/firestore';
 import type { Charge, Config, DB, House, Payment, Relation, Role, Session, User } from './types';
 import { auth, creatorAuth, fs } from './firebase';
-import { applyPayment, compareHouses, editPayment, openingChangeError, runAutomations, validPayments, voidPayment } from './billing';
+import { applyPayment, compareHouses, editPayment, openingChangeError, runAutomations, settleCharges, validPayments, voidPayment } from './billing';
 import { defaultConfig, createSeed } from './seed';
 import { addDays, localISODate } from './dates';
 
@@ -559,6 +559,17 @@ export function changeOpeningCharge(id: string, change: { amount: number; descri
     if (err) throw new Error(err);
     if (change) tx.update(ref, { amount: Math.round(change.amount * 100) / 100, description: change.description.trim() || c.description });
     else tx.delete(ref);
+  });
+}
+
+/** "Poner al día" una casa (herramienta temporal): da por pagado lo pendiente como ajuste, leyendo las cuotas del servidor. */
+export function settleHouse(houseId: string, by: string): Promise<number> {
+  const ids = state.db.charges.filter((c) => c.houseId === houseId).map((c) => c.id);
+  return runTransaction(fs, async (tx) => {
+    const snaps = await Promise.all(ids.map((id) => tx.get(doc(fs, 'charges', id))));
+    const changed = settleCharges(snaps.filter((s) => s.exists()).map((s) => s.data() as Charge), by, new Date().toISOString());
+    for (const c of changed) tx.set(doc(fs, 'charges', c.id), c);
+    return changed.length;
   });
 }
 

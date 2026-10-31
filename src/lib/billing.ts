@@ -254,6 +254,16 @@ export function openingChangeError(c: Charge, newAmount: number | null): string 
   return null;
 }
 
+// shortcut: herramienta temporal para dejar casas al día mientras se depuran los saldos; poner en false para quitar el botón.
+export const ALLOW_SET_UP_TO_DATE = true;
+
+/** "Poner al día": da por pagado lo pendiente de cada cuota, como ajuste de administración (sin recibo). Devuelve solo las cuotas que cambian. */
+export function settleCharges(charges: Charge[], by: string, at: string): Charge[] {
+  return charges
+    .filter((c) => pendingOf(c) > 0)
+    .map((c) => ({ ...c, paid: c.amount, adjustment: round2((c.adjustment ?? 0) + pendingOf(c)), adjustedAt: at, adjustedBy: by }));
+}
+
 export interface QueueItem {
   key: string;
   type: 'advance' | 'overdue';

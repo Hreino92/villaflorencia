@@ -209,6 +209,16 @@ test('estado de cuenta e ingresos no cuentan los recibos anulados', () => {
   assert.equal(reports.financialSummary(r.db, '2026-10', '2026-10').income, 0);
 });
 
+test('poner al día: da por pagado solo lo pendiente, sin recibo ni ingreso', () => {
+  const p = pay(db({ charges: [charge('A-1', '2026-08'), charge('A-1', '2026-09'), charge('A-1', '2026-10')] }), 30); // ago 22, sep 8
+  const changed = billing.settleCharges(p.db.charges, 'Admin', '2026-10-30T10:00:00');
+  assert.deepEqual(changed.map((c) => [c.period, c.paid, c.adjustment]), [['2026-09', 22, 14], ['2026-10', 22, 22]]);
+  const d = { ...p.db, charges: p.db.charges.map((c) => changed.find((x) => x.id === c.id) ?? c) };
+  assert.equal(billing.houseDebt(d, 'A-1'), 0);
+  assert.equal(reports.statement(d, 'A-1').at(-1).balance, 0); // el estado de cuenta cuadra
+  assert.equal(reports.financialSummary(d, '2026-10', '2026-10').income, 30); // el ajuste no es ingreso
+});
+
 test('búsqueda de casas por código, etiqueta o nombre', () => {
   const c14 = { ...house('C-14'), owner: { name: 'Juan Manuel Guzmán', phone: '', email: '', dui: '' } };
   const c1 = house('C-1');
