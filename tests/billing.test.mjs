@@ -165,6 +165,19 @@ test('estado de cuenta: los meses pagados antes del sistema no quedan como deuda
   assert.equal(rows.at(-1).balance, 0);
 });
 
+test('saldo anterior: se corrige o quita solo si no descuadra los recibos', () => {
+  const opening = (extra) => charge('A-1', '2026-09', { id: 'opening-A-1-2026-09', kind: 'opening', amount: 66, ...extra });
+  const err = billing.openingChangeError;
+  assert.equal(err(opening(), 44), null); // sin pagos: se corrige
+  assert.equal(err(opening(), null), null); // sin pagos: se quita
+  assert.equal(err(opening({ paid: 30 }), 30), null); // se puede bajar hasta lo pagado
+  assert.match(err(opening({ paid: 30 }), 22), /no puede ser menor/);
+  assert.match(err(opening({ paid: 30 }), null), /Corrige el monto/);
+  assert.match(err(opening(), 0), /mayor que cero/);
+  assert.match(err(charge('A-1', '2026-11'), 10), /saldos anteriores/); // las cuotas mensuales no
+  assert.equal(err(opening({ paid: 66, paidBeforeSystem: true }), null), null); // pagado antes del sistema: se puede quitar
+});
+
 test('la etiqueta de la casa se arma desde su código', () => {
   assert.equal(billing.houseIdLabel('B-17'), 'Polígono B, Lote 17');
 });

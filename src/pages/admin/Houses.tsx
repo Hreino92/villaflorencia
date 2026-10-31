@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { update, useDB, useToday } from '../../lib/store';
-import { chargesOf, chargeStatus, compareHouses, feeFor, houseDebt, houseLabel, overdueDebt, pendingOf } from '../../lib/billing';
+import { changeOpeningCharge, update, useDB, useToday } from '../../lib/store';
+import { chargesOf, chargeStatus, compareHouses, feeFor, houseDebt, houseLabel, openingChangeError, overdueDebt, pendingOf } from '../../lib/billing';
 import { capitalize, fmtDate, money, periodLabel, periodOf } from '../../lib/dates';
-import type { House, Person, Who } from '../../lib/types';
+import type { Charge, House, Person, Who } from '../../lib/types';
 import { Field, Modal, PageTitle, StatusBadge } from '../../components/ui';
 
 const WHO_LABEL: Record<Who, string> = { owner: 'Propietario', tenant: 'Inquilino', both: 'Ambos' };
@@ -176,10 +176,29 @@ function HouseForm({ house, onClose }: { house: House; onClose: () => void }) {
   );
 }
 
+// Mensaje del error: los de la validación se muestran tal cual; los de Firebase (con code) son de conexión o permisos.
+const errorText = (err: unknown) =>
+  err instanceof Error && !('code' in err) ? err.message : 'No se pudo guardar el cambio. Revisa tu conexión a internet e intenta de nuevo.';
+
 export function HouseAccount({ house, onClose }: { house: House; onClose: () => void }) {
   const db = useDB();
   const today = useToday();
   const charges = chargesOf(db, house.id).reverse();
+  const [editing, setEditing] = useState<Charge | null>(null);
+  const [error, setError] = useState('');
+
+  async function remove(c: Charge) {
+    setError('');
+    const why = openingChangeError(c, null);
+    if (why) return setError(why);
+    if (!confirm(`¿Quitar "${c.description}" por ${money(c.amount)}?`)) return;
+    try {
+      await changeOpeningCharge(c.id, null);
+    } catch (err) {
+      setError(errorText(err));
+    }
+  }
+
   return (
     <Modal title={`Estado de cuenta: ${houseLabel(house)}`} onClose={onClose} wide>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -188,9 +207,10 @@ export function HouseAccount({ house, onClose }: { house: House; onClose: () => 
         </div>
         <button className="btn btn-secondary" onClick={async () => { const p = await import('../../lib/pdf'); p.openFile(p.statementPDF(db, house, today)); }}>Descargar PDF</button>
       </div>
+      {error && <p role="alert" className="mb-3 rounded-md bg-red-50 p-2 text-sm text-red-700">{error}</p>}
       <div className="max-h-[60vh] overflow-y-auto">
         <table className="table">
-          <thead><tr><th>Concepto</th><th>Vence</th><th className="text-right">Monto</th><th className="text-right">Pendiente</th><th>Estado</th></tr></thead>
+          <thead><tr><th>Concepto</th><th>Vence</th><th className="text-right">Monto</th><th className="text-right">Pendiente</th><th>Estado</th><th></th></tr></thead>
           <tbody>
             {charges.map((c) => (
               <tr key={c.id}>
@@ -199,11 +219,65 @@ export function HouseAccount({ house, onClose }: { house: House; onClose: () => 
                 <td className="text-right">{money(c.amount)}</td>
                 <td className="text-right">{money(pendingOf(c))}</td>
                 <td><StatusBadge status={chargeStatus(c, today)} /></td>
+                <td className="whitespace-nowrap text-right">
+                  {/* Solo los saldos anteriores se corrigen aquí; las cuotas mensuales las genera el sistema. */}
+                  {c.kind === 'opening' && (
+                    <>
+                      {!c.paidBeforeSystem && <button className="btn btn-secondary btn-sm mr-1" onClick={() => { setError(''); setEditing(c); }}>Editar</button>}
+                      <button className="btn btn-secondary btn-sm text-red-700" onClick={() => remove(c)}>Quitar</button>
+                    </>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {editing && <OpeningForm charge={editing} onClose={() => setEditing(null)} />}
+    </Modal>
+  );
+}
+
+function OpeningForm({ charge, onClose }: { charge: Charge; onClose: () => void }) {
+  const [amount, setAmount] = useState(charge.amount.toFixed(2));
+  const [description, setDescription] = useState(charge.description);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    const value = Number(amount);
+    const why = openingChangeError(charge, value);
+    if (why) return setError(why);
+    setBusy(true);
+    setError('');
+    try {
+      await changeOpeningCharge(charge.id, { amount: value, description });
+      onClose();
+    } catch (err) {
+      setError(errorText(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Corregir saldo pendiente anterior" onClose={onClose}>
+      <form onSubmit={save} className="space-y-4">
+        {charge.paid > 0 && (
+          <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Ya se pagaron {money(charge.paid)} de este saldo con recibo, así que el monto no puede ser menor que eso.</p>
+        )}
+        <Field label="Monto adeudado (USD)">
+          <input className="input text-lg font-semibold" type="number" min={Math.max(0.01, charge.paid)} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+        </Field>
+        <Field label="Descripción">
+          <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} required />
+        </Field>
+        {error && <p role="alert" className="rounded-md bg-red-50 p-2 text-sm text-red-700">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" disabled={busy}>{busy ? 'Guardando…' : 'Guardar corrección'}</button>
+        </div>
+      </form>
     </Modal>
   );
 }

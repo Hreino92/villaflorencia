@@ -1,5 +1,5 @@
 import type { Charge, DB, House, Payment, Person, Relation, Who } from './types';
-import { addDays, addMonths, capitalize, dueDateFor, periodLabel, periodOf, round2 } from './dates';
+import { addDays, addMonths, capitalize, dueDateFor, money, periodLabel, periodOf, round2 } from './dates';
 
 export const houseLabel = (h: House) => `Polígono ${h.poligono}, Lote ${h.lote}`;
 
@@ -195,6 +195,19 @@ export function editPayment(
       payments: db.payments.map((p) => (p.id === old.id ? payment : p)),
     },
   };
+}
+
+/**
+ * ¿Se puede corregir (newAmount) o quitar (null) un saldo anterior? Devuelve el motivo si no, o null.
+ * Lo pagado con recibo no se toca: esos pagos tienen que seguir teniendo a qué estar aplicados.
+ */
+export function openingChangeError(c: Charge, newAmount: number | null): string | null {
+  if (c.kind !== 'opening') return 'Solo se pueden corregir los saldos anteriores.';
+  if (c.paidBeforeSystem) return newAmount === null ? null : 'Un mes pagado antes del sistema no se corrige; si no corresponde, quítalo.';
+  if (newAmount === null) return c.paid > 0 ? `Este saldo ya tiene ${money(c.paid)} pagados con recibo. Corrige el monto en lugar de quitarlo.` : null;
+  if (!(newAmount > 0)) return 'El monto debe ser mayor que cero. Para quitar el saldo usa "Quitar".';
+  if (round2(newAmount) < c.paid) return `Ya se pagaron ${money(c.paid)} de este saldo: el monto no puede ser menor.`;
+  return null;
 }
 
 export interface QueueItem {

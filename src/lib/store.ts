@@ -28,7 +28,7 @@ import {
 } from 'firebase/firestore';
 import type { Charge, Config, DB, House, Payment, Relation, Role, Session, User } from './types';
 import { auth, creatorAuth, fs } from './firebase';
-import { applyPayment, compareHouses, editPayment, runAutomations } from './billing';
+import { applyPayment, compareHouses, editPayment, openingChangeError, runAutomations } from './billing';
 import { defaultConfig, createSeed } from './seed';
 import { addDays, localISODate } from './dates';
 
@@ -533,6 +533,23 @@ export async function importHouses(data: HouseImport): Promise<void> {
   };
   set({ db: next });
   await commit(diff(prev, next));
+}
+
+/**
+ * Corrige (monto y descripción) o quita (null) un saldo anterior. Se valida con el dato del servidor,
+ * así un pago registrado al mismo tiempo no se pierde.
+ */
+export function changeOpeningCharge(id: string, change: { amount: number; description: string } | null): Promise<void> {
+  return runTransaction(fs, async (tx) => {
+    const ref = doc(fs, 'charges', id);
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error('Ese saldo ya no existe.');
+    const c = snap.data() as Charge;
+    const err = openingChangeError(c, change ? change.amount : null);
+    if (err) throw new Error(err);
+    if (change) tx.update(ref, { amount: Math.round(change.amount * 100) / 100, description: change.description.trim() || c.description });
+    else tx.delete(ref);
+  });
 }
 
 /** Lee el archivo de meses pagados antes del sistema. Devuelve las cuotas o un mensaje de error. */
