@@ -279,7 +279,7 @@ function MonthChart({ months }: { months: { period: string; income: number; expe
   return (
     <div>
       <div className="mb-2 flex gap-4 text-xs text-slate-600">
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: '#1baf7a' }} />Ingresos</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: '#4c7f3b' }} />Ingresos</span>
         <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: '#eb6834' }} />Gastos</span>
       </div>
       <div className="flex h-48 items-end gap-3 overflow-x-auto border-b border-slate-300 pb-0">
@@ -287,7 +287,7 @@ function MonthChart({ months }: { months: { period: string; income: number; expe
           <div key={m.period} className="flex min-w-14 flex-1 flex-col items-center" title={`${capitalize(periodLabel(m.period))}\nIngresos: ${money(m.income)}\nGastos: ${money(m.expenses)}\nResultado: ${money(round2(m.income - m.expenses))}`}>
             <div className="flex h-44 w-full items-end justify-center gap-0.5">
               {[
-                { v: m.income, c: '#1baf7a' },
+                { v: m.income, c: '#4c7f3b' },
                 { v: m.expenses, c: '#eb6834' },
               ].map((b, i) => (
                 <div key={i} className="flex h-full w-1/2 max-w-8 flex-col items-center justify-end">

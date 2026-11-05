@@ -34,10 +34,10 @@ export default function Setup() {
     setForm({ ...form, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-emerald-900 p-4">
-      <form onSubmit={submit} className="card w-full max-w-md space-y-4">
+    <div className="flex min-h-screen items-center justify-center bg-terracota-600 p-4">
+      <form onSubmit={submit} className="card w-full max-w-md space-y-4 animate-pop">
         <div>
-          <h1 className="text-xl font-bold text-emerald-800">Configuración inicial</h1>
+          <h1 className="text-xl font-bold text-terracota-700">Configuración inicial</h1>
           <p className="text-sm text-slate-500">Crea la residencial y la cuenta del administrador principal. Este paso solo se hace una vez.</p>
         </div>
         <Field label="Nombre de la residencial"><input className="input" value={form.residential} onChange={set('residential')} required /></Field>

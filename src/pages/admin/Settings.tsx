@@ -159,7 +159,7 @@ export default function Settings() {
               <textarea className="input" rows={4} value={cfg.templates[t.key]} onChange={(e) => setCfg({ ...cfg, templates: { ...cfg.templates, [t.key]: e.target.value } })} />
               <span className="mt-1 flex justify-between text-xs text-slate-400">
                 <span>Variables: {t.vars}</span>
-                <button type="button" className="text-emerald-700" onClick={() => setCfg({ ...cfg, templates: { ...cfg.templates, [t.key]: DEFAULT_TEMPLATES[t.key] } })}>Restaurar</button>
+                <button type="button" className="text-terracota-700 hover:underline" onClick={() => setCfg({ ...cfg, templates: { ...cfg.templates, [t.key]: DEFAULT_TEMPLATES[t.key] } })}>Restaurar</button>
               </span>
             </Field>
           ))}

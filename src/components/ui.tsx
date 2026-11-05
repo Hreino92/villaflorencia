@@ -1,14 +1,14 @@
 import type { ReactNode } from 'react';
 import type { ChargeStatus } from '../lib/billing';
 
-/** Marca: flor de veranera (buganvilia), tres brácteas alrededor del centro. */
+/** Marca: flor de veranera (buganvilia), tres brácteas alrededor del centro. En arena, para ir sobre la terracota. */
 export function Veranera({ size = 32, className = '' }: { size?: number; className?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" className={className} aria-hidden="true">
       {[0, 120, 240].map((r) => (
-        <path key={r} d="M16 16 C9 13 9 4 16 3 C23 4 23 13 16 16Z" fill="#b3246b" transform={`rotate(${r} 16 16)`} />
+        <path key={r} d="M16 16 C9 13 9 4 16 3 C23 4 23 13 16 16Z" fill="#f3dfd5" transform={`rotate(${r} 16 16)`} />
       ))}
-      <circle cx="16" cy="16" r="2.6" fill="#f3e9a6" />
+      <circle cx="16" cy="16" r="2.6" fill="#b0644a" />
     </svg>
   );
 }
@@ -56,11 +56,11 @@ export function Stat({ label, value, hint, tone = 'slate' }: { label: string; va
 
 export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4" onMouseDown={onClose}>
-      <div className={`card my-8 w-full ${wide ? 'max-w-3xl' : 'max-w-lg'}`} onMouseDown={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/45 p-4 animate-fade" onMouseDown={onClose}>
+      <div className={`card my-8 w-full animate-pop ${wide ? 'max-w-3xl' : 'max-w-lg'}`} onMouseDown={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold">{title}</h2>
-          <button className="text-2xl leading-none text-slate-400 hover:text-slate-700" onClick={onClose} aria-label="Cerrar">
+          <button className="-m-2 p-2 text-2xl leading-none text-slate-400 transition-colors hover:text-slate-700" onClick={onClose} aria-label="Cerrar">
             ×
           </button>
         </div>

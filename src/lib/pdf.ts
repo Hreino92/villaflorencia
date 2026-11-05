@@ -8,14 +8,14 @@ import { financialSummary, housesInRange, moraList, rangeLabel, statement } from
 // ---------- Paleta (validada para daltonismo: ingresos vs gastos) ----------
 
 type RGB = [number, number, number];
-const BRAND: RGB = [6, 95, 70]; // verde de la residencial
-const BRAND_DARK: RGB = [4, 70, 52];
-const BRAND_SOFT: RGB = [236, 253, 245];
+const BRAND: RGB = [151, 82, 60]; // terracota del rótulo de la entrada
+const BRAND_DARK: RGB = [125, 67, 50];
+const BRAND_SOFT: RGB = [250, 241, 236];
 const INK: RGB = [15, 23, 42];
 const MUTED: RGB = [100, 116, 139];
 const LINE: RGB = [226, 232, 240];
 const ZEBRA: RGB = [248, 250, 252];
-const INCOME: RGB = [27, 175, 122];
+const INCOME: RGB = [76, 127, 59];
 const EXPENSE: RGB = [235, 104, 52];
 const DANGER: RGB = [220, 38, 38];
 const STATUS: Record<string, { fill: RGB; text: RGB; label: string }> = {

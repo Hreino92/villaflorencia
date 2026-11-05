@@ -13,7 +13,7 @@ export function Loading({ text = 'Cargando…' }: { text?: string }) {
   return (
     <div className="flex min-h-screen items-center justify-center text-slate-500">
       <div className="flex items-center gap-3">
-        <span className="h-5 w-5 animate-spin rounded-full border-2 border-emerald-700 border-t-transparent" />
+        <span className="h-5 w-5 animate-spin rounded-full border-2 border-terracota-600 border-t-transparent" />
         {text}
       </div>
     </div>

@@ -28,7 +28,7 @@ function HouseMap() {
   if (!db.houses.length) {
     return (
       <div className="card">
-        <p className="text-slate-600">Todavía no hay casas registradas. <Link to="/admin/casas" className="font-semibold text-emerald-700 underline">Agrega la primera casa</Link> para ver aquí el estado de pago de la colonia.</p>
+        <p className="text-slate-600">Todavía no hay casas registradas. <Link to="/admin/casas" className="font-semibold text-terracota-700 underline">Agrega la primera casa</Link> para ver aquí el estado de pago de la colonia.</p>
       </div>
     );
   }
@@ -99,7 +99,7 @@ export default function Dashboard() {
         <div className="card">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-bold">Casas en mora</h2>
-            <Link to="/admin/reportes" className="text-sm font-semibold text-emerald-700">Ver reporte</Link>
+            <Link to="/admin/reportes" className="text-sm font-semibold text-terracota-700 hover:underline">Ver reporte</Link>
           </div>
           <table className="table">
             <thead><tr><th>Casa</th><th>Meses</th><th className="text-right">Vencido</th></tr></thead>
@@ -119,7 +119,7 @@ export default function Dashboard() {
         <div className="card">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-bold">Últimos pagos</h2>
-            <Link to="/admin/pagos" className="text-sm font-semibold text-emerald-700">Ver todos</Link>
+            <Link to="/admin/pagos" className="text-sm font-semibold text-terracota-700 hover:underline">Ver todos</Link>
           </div>
           <table className="table">
             <thead><tr><th>Recibo</th><th>Casa</th><th>Fecha</th><th className="text-right">Monto</th></tr></thead>

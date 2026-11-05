@@ -115,13 +115,13 @@ function HouseForm({ house, onClose }: { house: House; onClose: () => void }) {
         {duplicate && <p className="text-sm text-red-600">Ya existe una casa con ese polígono y lote.</p>}
 
         <section>
-          <h3 className="mb-2 font-semibold text-emerald-800">Propietario</h3>
+          <h3 className="mb-2 font-semibold text-terracota-700">Propietario</h3>
           <PersonFields value={h.owner} onChange={(owner) => setH({ ...h, owner })} />
         </section>
 
         <section>
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="font-semibold text-emerald-800">Inquilino</h3>
+            <h3 className="font-semibold text-terracota-700">Inquilino</h3>
             {h.tenant ? (
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setH({ ...h, tenant: null })}>Quitar inquilino</button>
             ) : (

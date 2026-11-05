@@ -6,8 +6,8 @@ import { houseLabel } from './billing';
 import { capitalize, fmtDate, localISODate, periodLabel } from './dates';
 import { financialSummary, housesInRange, moraList, rangeLabel, statement } from './reports';
 
-const BRAND = 'FF065F46';
-const BRAND_SOFT = 'FFECFDF5';
+const BRAND = 'FF97523C';
+const BRAND_SOFT = 'FFFAF1EC';
 const MUTED = 'FF64748B';
 const ZEBRA = 'FFF8FAFC';
 const MONEY = '"$"#,##0.00';

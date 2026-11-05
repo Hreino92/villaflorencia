@@ -54,19 +54,19 @@ export default function Login() {
 
   return (
     <div className="min-h-screen md:grid md:grid-cols-[1.1fr_1fr]">
-      <section className="relative overflow-hidden bg-emerald-900 px-6 py-10 text-white md:flex md:flex-col md:justify-between md:px-14 md:py-14">
+      <section className="relative overflow-hidden bg-terracota-600 px-6 py-10 text-white md:flex md:flex-col md:justify-between md:px-14 md:py-14">
         <Veranera size={44} className="md:invisible" />
-        <div className="relative mt-8 md:mt-0">
-          {kind && <p className="text-lg text-emerald-200">{kind}</p>}
-          <h1 className="text-[44px] leading-[0.95] font-extrabold tracking-tight md:text-[88px]">{name}</h1>
-          <p className="mt-5 max-w-sm text-[17px] text-emerald-100">Cuotas, recibos y visitas de la residencial, en un solo lugar.</p>
+        <div className="relative mt-8 animate-rise md:mt-0">
+          {kind && <p className="text-lg text-terracota-100">{kind}</p>}
+          <h1 className="text-[40px] leading-[1] font-extrabold uppercase tracking-wide md:text-[44px] lg:text-[64px]">{name}</h1>
+          <p className="mt-5 max-w-sm text-[17px] text-terracota-50">Cuotas, recibos y visitas de la residencial, en un solo lugar.</p>
         </div>
         {/* Veranera grande asomando por la esquina, como la que cuelga de los muros de la colonia */}
-        <Veranera size={380} className="pointer-events-none absolute -top-24 -right-24 hidden md:block" />
+        <Veranera size={380} className="pointer-events-none absolute -top-24 -right-24 hidden opacity-25 md:block" />
       </section>
 
       <div className="flex items-center justify-center bg-slate-50 px-5 py-10">
-      <form onSubmit={submit} className="w-full max-w-sm space-y-4">
+      <form onSubmit={submit} className="w-full max-w-sm space-y-4 animate-rise">
         <h2 className="text-[22px] font-extrabold tracking-tight">Entrar</h2>
         <Field label="Correo electrónico">
           <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" autoFocus required />
@@ -77,7 +77,7 @@ export default function Login() {
         {error && <p className="rounded-md bg-red-50 p-2 text-sm text-red-700">{error}</p>}
         {info && <p className="rounded-md bg-emerald-50 p-2 text-sm text-emerald-800">{info}</p>}
         <button className="btn btn-primary w-full" disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</button>
-        <button type="button" className="w-full text-center text-sm font-semibold text-emerald-700 hover:underline" onClick={forgot}>
+        <button type="button" className="w-full text-center text-sm font-semibold text-terracota-700 hover:underline" onClick={forgot}>
           Olvidé mi contraseña
         </button>
       </form>
