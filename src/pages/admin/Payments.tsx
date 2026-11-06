@@ -48,7 +48,7 @@ export default function Payments() {
                   <td className="text-xs text-slate-500">{p.allocations.map((a) => a.description).join(', ')}{p.credit > 0 && ` + ${money(p.credit)} a favor`}</td>
                   <td className="text-right font-semibold">
                     {p.voidedAt ? <s className="text-slate-400">{money(p.amount)}</s> : money(p.amount)}
-                    {p.voidedAt ? <div className="text-xs font-bold text-red-700">ANULADO</div> : p.editedAt && <div className="text-xs font-normal text-amber-800">corregido</div>}
+                    {p.voidedAt ? <div className="text-xs font-semibold text-red-700">ANULADO</div> : p.editedAt && <div className="text-xs font-normal text-amber-800">corregido</div>}
                   </td>
                   <td><button className="btn btn-secondary btn-sm" onClick={() => setDone(p)}>Recibo</button></td>
                 </tr>
@@ -215,12 +215,12 @@ function RegisterPayment({ onClose, onDone }: { onClose: () => void; onDone: (p:
           </>
         )}
         {preview && (
-          <div className="rounded-lg border-2 border-emerald-600 bg-emerald-50 p-3 text-sm">
+          <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm">
             <p className="mb-2 font-semibold">Así se aplicará el pago de {money(preview.amount)}:</p>
             <ul className="space-y-0.5">
               {preview.allocations.map((a) => (
                 <li key={a.chargeId} className="flex justify-between gap-2">
-                  <span className={a.description.endsWith('(adelantada)') ? 'font-semibold text-violet-800' : ''}>{a.description}</span>
+                  <span className={a.description.endsWith('(adelantada)') ? 'font-medium text-emerald-700' : ''}>{a.description}</span>
                   <span>{money(a.amount)}</span>
                 </li>
               ))}

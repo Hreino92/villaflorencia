@@ -62,7 +62,7 @@ export default function Gate() {
         <div className="flex gap-2">
           <input
             ref={inputRef}
-            className="input flex-1 py-4 text-center font-mono text-3xl uppercase tracking-[0.3em]"
+            className="input min-w-0 flex-1 py-4 text-center font-mono text-2xl uppercase tracking-[0.2em] sm:text-3xl sm:tracking-[0.3em]"
             value={code}
             maxLength={6}
             autoFocus
@@ -81,7 +81,7 @@ export default function Gate() {
 
       <div className="card">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-bold">Visitas de hoy ({fmtDate(today)})</h2>
+          <h2 className="font-semibold">Visitas de hoy ({fmtDate(today)})</h2>
           <span className="text-sm text-slate-500">{todays.filter((v) => v.enteredAt).length} de {todays.length} ingresaron</span>
         </div>
         <input className="input mb-3" placeholder="Buscar: nombre, DUI o casa (C14)" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -112,8 +112,8 @@ export default function Gate() {
 function ResultCard({ result, onAdmit }: { result: Result; onAdmit: (v: Visit) => void }) {
   if (result.kind === 'notFound') {
     return (
-      <div className="mb-4 rounded-xl border-2 border-red-400 bg-red-50 p-5 text-center">
-        <div className="text-2xl font-bold text-red-700">Código no válido</div>
+      <div className="mb-4 rounded-xl border-2 border-red-400 bg-red-50 p-5 text-center animate-pop">
+        <div className="text-2xl font-semibold text-red-700">Código no válido</div>
         <p className="text-red-700">No existe ninguna visita con el código {result.code}. Busca por nombre o llama a la casa.</p>
       </div>
     );
@@ -132,8 +132,8 @@ function ResultCard({ result, onAdmit }: { result: Result; onAdmit: (v: Visit) =
   }[result.kind];
 
   return (
-    <div className={`mb-4 rounded-xl border-2 p-5 ${style}`}>
-      <div className="mb-3 text-2xl font-bold">{title}</div>
+    <div key={result.kind + v.code} className={`mb-4 rounded-xl border-2 p-5 animate-pop ${style}`}>
+      <div className="mb-3 text-2xl font-semibold">{title}</div>
       <div className="grid gap-1 text-slate-800 sm:grid-cols-2">
         <div><span className="text-sm text-slate-500">Visitante</span><div className="text-lg font-semibold">{v.visitorName}</div></div>
         <div><span className="text-sm text-slate-500">DUI (verificar documento)</span><div className="font-mono text-lg font-semibold">{v.dui}</div></div>

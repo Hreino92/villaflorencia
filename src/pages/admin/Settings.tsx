@@ -83,7 +83,7 @@ function ImportHouses() {
 
   return (
     <div className="card mb-6 max-w-3xl">
-      <h2 className="font-bold">Importar casas o meses pagados</h2>
+      <h2 className="font-semibold">Importar casas o meses pagados</h2>
       <p className="mb-3 text-sm text-slate-500">
         Con el archivo de casas (casas-villa-florencia.json) se reemplazan las casas actuales. Con el de meses pagados (meses-pagados-villa-florencia.json) solo se agregan los meses que ya estaban pagados antes del sistema.
       </p>
@@ -141,7 +141,7 @@ export default function Settings() {
     <>
       <PageTitle title="Configuración" subtitle="Cambia montos, fechas y mensajes sin tocar el código" />
       <form onSubmit={save} className="card mb-6 space-y-4">
-        <h2 className="font-bold">Cobro mensual</h2>
+        <h2 className="font-semibold">Cobro mensual</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Nombre de la residencial" className="sm:col-span-2"><input className="input" value={cfg.name} onChange={(e) => setCfg({ ...cfg, name: e.target.value })} required /></Field>
           <Field label="Cuota mensual (USD)"><input className="input" type="number" min={0} step="0.01" value={cfg.fee} onChange={(e) => setCfg({ ...cfg, fee: Number(e.target.value) })} required /></Field>
@@ -152,7 +152,7 @@ export default function Settings() {
           Los cambios de cuota y vencimiento aplican a los meses que se generen después; no modifican cargos ya emitidos. Si el mes tiene menos días, vence el último día del mes.
         </p>
 
-        <h2 className="pt-2 font-bold">Mensajes de WhatsApp</h2>
+        <h2 className="pt-2 font-semibold">Mensajes de WhatsApp</h2>
         <div className="grid gap-4 lg:grid-cols-2">
           {TEMPLATE_INFO.map((t) => (
             <Field key={t.key} label={t.label}>
@@ -175,7 +175,7 @@ export default function Settings() {
       {/* Solo en el modo de pruebas local: en producción cambiaría la fecha para todos. */}
       {usingEmulators && (
         <div className="card max-w-xl border-amber-300">
-          <h2 className="mb-1 font-bold">Herramientas de prueba</h2>
+          <h2 className="mb-1 font-semibold">Herramientas de prueba</h2>
           <p className="mb-3 text-sm text-slate-500">Solo aparecen con los emuladores locales, para probar el comportamiento en otras fechas.</p>
           <div className="mb-4 flex flex-wrap items-end gap-2">
             <Field label="Simular la fecha de hoy">

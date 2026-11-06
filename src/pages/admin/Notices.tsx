@@ -86,7 +86,7 @@ export default function Notices() {
               </div>
               <p className="mb-3 rounded-md bg-slate-50 p-2 text-xs text-slate-600">{messageFor(db, item)}</p>
               <div className="flex items-center justify-between">
-                <span className="text-lg font-bold">{money(item.amount)}</span>
+                <span className="text-lg font-semibold">{money(item.amount)}</span>
                 {item.person.phone ? (
                   <div className="flex gap-2">
                     {!item.sent && <button className="btn btn-secondary btn-sm" onClick={() => markSent(item)}>Marcar enviado</button>}

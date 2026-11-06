@@ -8,23 +8,23 @@ import { financialSummary, housesInRange, moraList, rangeLabel, statement } from
 // ---------- Paleta (validada para daltonismo: ingresos vs gastos) ----------
 
 type RGB = [number, number, number];
-const BRAND: RGB = [151, 82, 60]; // terracota del rótulo de la entrada
-const BRAND_DARK: RGB = [125, 67, 50];
-const BRAND_SOFT: RGB = [250, 241, 236];
-const INK: RGB = [15, 23, 42];
-const MUTED: RGB = [100, 116, 139];
-const LINE: RGB = [226, 232, 240];
-const ZEBRA: RGB = [248, 250, 252];
-const INCOME: RGB = [76, 127, 59];
-const EXPENSE: RGB = [235, 104, 52];
-const DANGER: RGB = [220, 38, 38];
+const BRAND: RGB = [154, 90, 70]; // terracota del rótulo (#9A5A46, admite texto blanco)
+const BRAND_DARK: RGB = [132, 75, 58];
+const BRAND_SOFT: RGB = [245, 230, 223];
+const INK: RGB = [46, 41, 36];
+const MUTED: RGB = [111, 101, 91];
+const LINE: RGB = [232, 221, 207];
+const ZEBRA: RGB = [250, 247, 242];
+const INCOME: RGB = [95, 127, 79];
+const EXPENSE: RGB = [178, 107, 85];
+const DANGER: RGB = [176, 60, 74];
 const STATUS: Record<string, { fill: RGB; text: RGB; label: string }> = {
-  pagado: { fill: [220, 252, 231], text: [21, 128, 61], label: 'Pagado' },
-  pendiente: { fill: [254, 243, 199], text: [146, 64, 14], label: 'Pend.' },
-  parcial: { fill: [224, 242, 254], text: [3, 105, 161], label: 'Parcial' },
-  vencido: { fill: [254, 226, 226], text: [185, 28, 28], label: 'Mora' },
-  adelantado: { fill: [237, 233, 254], text: [91, 33, 182], label: 'Adel.' },
-  'sin cargo': { fill: [255, 255, 255], text: [148, 163, 184], label: '-' },
+  pagado: { fill: [233, 239, 227], text: [58, 78, 48], label: 'Pagado' },
+  pendiente: { fill: [246, 238, 220], text: [97, 70, 33], label: 'Pend.' },
+  parcial: { fill: [227, 235, 240], text: [55, 74, 85], label: 'Parcial' },
+  vencido: { fill: [248, 228, 230], text: [124, 41, 52], label: 'Mora' },
+  adelantado: { fill: [210, 222, 198], text: [47, 63, 39], label: 'Adel.' },
+  'sin cargo': { fill: [255, 255, 255], text: [139, 144, 150], label: '-' },
 };
 
 const M = 14; // margen
@@ -419,7 +419,7 @@ export function statementPDF(db: DB, house: House, today: string): File {
     startY: y,
     head: [['Fecha', 'Concepto', 'Cargo', 'Abono', 'Saldo']],
     body: rows.map((r) => [fmtDate(r.date), r.concept, r.charge ? money(r.charge) : '', r.payment ? money(r.payment) : '', money(r.balance)]),
-    columnStyles: { 0: { cellWidth: 22 }, 2: { halign: 'right' }, 3: { halign: 'right', textColor: [21, 128, 61] }, 4: { halign: 'right', fontStyle: 'bold' } },
+    columnStyles: { 0: { cellWidth: 22 }, 2: { halign: 'right' }, 3: { halign: 'right', textColor: [67, 91, 55] }, 4: { halign: 'right', fontStyle: 'bold' } },
   });
   footer(doc, `${db.config.name} · Estado de cuenta al ${fmtDate(today)}`);
   return pdfFile(doc, `Estado-de-cuenta-${house.poligono}${house.lote}.pdf`);
@@ -471,7 +471,7 @@ export function financialPDF(db: DB, from: string, to: string): File {
     didParseCell: (d: CellHookData) => {
       if (d.section === 'body' && d.column.index === 3) {
         const m = s.months[d.row.index];
-        d.cell.styles.textColor = m.income - m.expenses < 0 ? DANGER : [21, 128, 61];
+        d.cell.styles.textColor = m.income - m.expenses < 0 ? DANGER : [67, 91, 55];
       }
     },
   });
@@ -519,7 +519,7 @@ export function housesPDF(db: DB, from: string, to: string, today: string): File
   const count = (o: string) => rows.filter((r) => r.overall === o).length;
   y = tiles(doc, y, [
     { label: 'Al día', value: String(count('al día')), hint: `de ${rows.length} casas`, color: INCOME },
-    { label: 'Con meses adelantados', value: String(count('adelantado')), color: [124, 58, 237] },
+    { label: 'Con meses adelantados', value: String(count('adelantado')), color: [67, 91, 55] },
     { label: 'En mora', value: String(count('mora')), color: DANGER },
     // Incluye los meses pagados antes del sistema: es lo pagado, no solo lo cobrado con recibo en la app.
     { label: 'Pagado en el período', value: money(paid), hint: `de ${money(billed)} en cuotas` },

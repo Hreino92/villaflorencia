@@ -1,11 +1,14 @@
 @import "tailwindcss";
 
 /*
-  Paleta "Portón": tomada de la entrada de la residencial.
-  - terracota: la franja del rótulo con letras blancas. Marca y acción principal.
-  - slate     → Cantera: neutros cálidos de los muros beige y la piedra de la caseta.
-  - emerald   → Seto: verde de los arbustos. Solo para "pagado", "al día" y confirmaciones.
-  Las pantallas usan las escalas slate y emerald de Tailwind; aquí se redefinen.
+  Paleta "Portón", tomada de la entrada de la residencial, en tonos suaves.
+  Las pantallas usan las escalas de Tailwind; aquí se redefinen, así todo cambia desde un solo lugar.
+  - slate     → cálidos: fondo de cal (50), superficie hundida (100), muro arena (200/300),
+                 gris del portón (400), texto secundario (500) y principal (900).
+  - terracota → el rótulo. Solo en acción principal, menú activo, enlaces y detalles de marca.
+                 500 es el tono de la foto (barras, franjas, foco); 600/700 llevan texto (AA).
+  - emerald   → verde del seto: pagado / al día.   amber → pendiente.
+  - red       → mora, un rojo más frío que la terracota para no confundirlos.   sky → parcial.
 */
 @theme {
   /* Lexend: hecha para leer con facilidad y con un cero limpio en los montos.
@@ -13,88 +16,127 @@
   --font-sans: "Lexend", system-ui, sans-serif;
   --font-mono: "Atkinson Hyperlegible Mono", ui-monospace, monospace;
 
-  --color-terracota-50: #faf1ec;
-  --color-terracota-100: #f3dfd5;
-  --color-terracota-200: #e7c0ae;
-  --color-terracota-300: #d79a80;
-  --color-terracota-400: #c47b5f;
-  --color-terracota-500: #b0644a;
-  --color-terracota-600: #97523c;
-  --color-terracota-700: #7d4332;
-  --color-terracota-800: #65372a;
-  --color-terracota-900: #4f2c22;
+  --color-slate-50: #faf7f2;
+  --color-slate-100: #f2ece3;
+  --color-slate-200: #e8ddcf;
+  --color-slate-300: #d9cbb8;
+  --color-slate-400: #8b9096;
+  --color-slate-500: #6f655b;
+  --color-slate-600: #5c534a;
+  --color-slate-700: #49413a;
+  --color-slate-800: #3a332d;
+  --color-slate-900: #2e2924;
+  --color-slate-950: #1f1b18;
+  --color-grid: #efe8de;
 
-  --color-emerald-50: #f0f5ec;
-  --color-emerald-100: #dbe8d2;
-  --color-emerald-200: #b9d3a8;
-  --color-emerald-300: #8fb87a;
-  --color-emerald-400: #679a53;
-  --color-emerald-500: #4c7f3b;
-  --color-emerald-600: #3c6a2f;
-  --color-emerald-700: #305626;
-  --color-emerald-800: #27461f;
-  --color-emerald-900: #1f381a;
-  --color-emerald-950: #10200d;
+  --color-terracota-50: #fbf4f0;
+  --color-terracota-100: #f5e6df;
+  --color-terracota-200: #ecd0c4;
+  --color-terracota-300: #dcab98;
+  --color-terracota-400: #c88a74;
+  --color-terracota-500: #b26b55;
+  --color-terracota-600: #9a5a46;
+  --color-terracota-700: #844b3a;
+  --color-terracota-800: #6b3d30;
+  --color-terracota-900: #553128;
 
-  --color-slate-50: #f8f5f0;
-  --color-slate-100: #f1ebe2;
-  --color-slate-200: #e5dccf;
-  --color-slate-300: #d2c5b3;
-  --color-slate-400: #a8998a;
-  --color-slate-500: #776a5e;
-  --color-slate-600: #5f544a;
-  --color-slate-700: #483f37;
-  --color-slate-800: #352e28;
-  --color-slate-900: #26201c;
-  --color-slate-950: #17130f;
+  --color-emerald-50: #f3f6ef;
+  --color-emerald-100: #e9efe3;
+  --color-emerald-200: #d2dec6;
+  --color-emerald-300: #afc39d;
+  --color-emerald-400: #82a06f;
+  --color-emerald-500: #5f7f4f;
+  --color-emerald-600: #4f6b41;
+  --color-emerald-700: #435b37;
+  --color-emerald-800: #3a4e30;
+  --color-emerald-900: #2f3f27;
+  --color-emerald-950: #1b2516;
 
-  /* Movimiento: entradas que desaceleran al llegar, cortas para no estorbar. */
+  --color-amber-50: #fbf6ea;
+  --color-amber-100: #f6eedc;
+  --color-amber-200: #eddcb6;
+  --color-amber-300: #e0c489;
+  --color-amber-400: #cda45e;
+  --color-amber-500: #b98a3e;
+  --color-amber-600: #8f6a2d;
+  --color-amber-700: #775626;
+  --color-amber-800: #614621;
+  --color-amber-900: #4f391c;
+  --color-amber-950: #2e210f;
+
+  --color-red-50: #fcf2f3;
+  --color-red-100: #f8e4e6;
+  --color-red-200: #f0cbd0;
+  --color-red-300: #e2a3ab;
+  --color-red-400: #cf737e;
+  --color-red-500: #be4f5d;
+  --color-red-600: #b03c4a;
+  --color-red-700: #96313e;
+  --color-red-800: #7c2934;
+  --color-red-900: #64222b;
+  --color-red-950: #3a1218;
+
+  --color-sky-50: #f1f5f7;
+  --color-sky-100: #e3ebf0;
+  --color-sky-200: #c6d6e0;
+  --color-sky-300: #9db5c4;
+  --color-sky-400: #7896a8;
+  --color-sky-500: #5b7a8c;
+  --color-sky-600: #4d6878;
+  --color-sky-700: #415866;
+  --color-sky-800: #374a55;
+  --color-sky-900: #2e3e47;
+  --color-sky-950: #1b252b;
+
+  /* Movimiento: entradas que desaceleran al llegar; las salidas, más cortas. */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --animate-rise: rise 0.32s var(--ease-out) both;
-  --animate-fade: fade 0.2s ease-out both;
-  --animate-pop: pop 0.24s var(--ease-out) both;
+  /* "backwards": al terminar no deja transform, que encerraría a los modales (position: fixed) dentro de la pantalla. */
+  --animate-rise: rise 250ms var(--ease-out) backwards;
+  --animate-fade: fade 200ms var(--ease-out) both;
+  --animate-fade-out: fade 140ms ease-in reverse both;
+  --animate-pop: pop 200ms var(--ease-out) both;
+  --animate-pop-out: pop 140ms ease-in reverse both;
+  --animate-grow: grow 400ms var(--ease-out) both;
 
-  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
   @keyframes fade { from { opacity: 0; } }
-  @keyframes pop { from { opacity: 0; transform: translateY(6px) scale(0.97); } }
+  @keyframes pop { from { opacity: 0; transform: scale(0.98); } }
+  @keyframes grow { from { transform: scaleY(0); } }
+  @keyframes grow-x { from { transform: scaleX(0); } }
 }
 
 @layer base {
   html { -webkit-text-size-adjust: 100%; }
   body { font-size: 15px; line-height: 1.5; font-feature-settings: "tnum" 1; }
-  :focus-visible { outline: 3px solid var(--color-terracota-400); outline-offset: 2px; }
+  ::selection { background: var(--color-terracota-100); }
+  :focus-visible { outline: 2px solid var(--color-terracota-500); outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }
   }
 }
 
 /* Componentes base. Los botones se combinan: "btn btn-primary". */
 @layer components {
-  .card { @apply bg-white rounded-2xl border border-slate-200 p-5 shadow-[0_1px_2px_rgb(38_32_28/0.04)]; }
-  .btn { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] px-4 text-[15px] font-semibold transition-[color,background-color,border-color,transform] duration-150 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 cursor-pointer; }
+  .card { @apply bg-white rounded-2xl border border-slate-200 p-6 shadow-[0_1px_2px_rgb(46_41_36/0.03)]; }
+  .btn { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-[15px] font-medium transition-[color,background-color,border-color,transform] duration-150 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 cursor-pointer select-none; }
   .btn-primary { @apply bg-terracota-600 text-white hover:bg-terracota-700; }
-  .btn-secondary { @apply bg-white border border-slate-300 text-slate-800 hover:bg-slate-100; }
-  .btn-whatsapp { @apply bg-[#1f8f4e] text-white hover:bg-[#187a41]; }
-  .btn-danger { @apply bg-red-700 text-white hover:bg-red-800; }
-  .btn-sm { @apply min-h-8 rounded-lg px-3 text-[13px]; }
-  .input { @apply w-full min-h-11 rounded-[10px] border border-slate-300 bg-white px-3 py-2 text-[15px] transition-[border-color,box-shadow] duration-150 focus:border-terracota-500 focus:outline-none focus:ring-3 focus:ring-terracota-100; }
-  .label { @apply block text-sm font-semibold text-slate-700 mb-1; }
-  .table { @apply w-full text-[14px]; }
-  .table th { @apply text-left text-[13px] font-semibold text-slate-500 border-b-2 border-slate-200 py-2 px-2 whitespace-nowrap; }
-  .table td { @apply border-b border-slate-100 py-2.5 px-2 align-top; }
-  .table tbody tr { @apply transition-colors hover:bg-slate-50; }
-  .badge { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold whitespace-nowrap; }
-
-  /* Las secciones de cada pantalla entran una tras otra. */
-  .stagger > * { @apply animate-rise; }
-  .stagger > :nth-child(2) { animation-delay: 40ms; }
-  .stagger > :nth-child(3) { animation-delay: 80ms; }
-  .stagger > :nth-child(4) { animation-delay: 120ms; }
-  .stagger > :nth-child(n + 5) { animation-delay: 160ms; }
+  .btn-secondary { @apply bg-white border border-slate-200 text-slate-800 hover:border-slate-300 hover:bg-slate-50; }
+  .btn-whatsapp { @apply bg-[#1f7a4a] text-white hover:bg-[#186a3f]; }
+  .btn-danger { @apply bg-red-600 text-white hover:bg-red-700; }
+  /* Visualmente compacto, con el área táctil extendida a 44px. */
+  .btn-sm { @apply relative min-h-9 rounded-lg px-3 text-[13px]; }
+  .btn-sm::after { content: ""; position: absolute; inset: -4px 0; }
+  .input { @apply w-full min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-[15px] text-slate-900 placeholder:text-slate-400 transition-[border-color,box-shadow] duration-150 focus:border-terracota-500 focus:outline-none focus:ring-3 focus:ring-terracota-100; }
+  .label { @apply block text-sm font-medium text-slate-700 mb-1.5; }
+  .table { @apply w-full text-[14px] tabular-nums; }
+  .table th { @apply text-left text-[13px] font-medium text-slate-500 border-b border-slate-200 py-2.5 px-3 whitespace-nowrap; }
+  .table td { @apply border-b border-slate-100 py-3 px-3 align-top; }
+  .table tbody tr { @apply transition-colors duration-150 hover:bg-slate-50; }
+  .badge { @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap; }
 
   /* Talonario: un código de visita se ve como el talón de un recibo, con borde perforado. */
   .ticket {
-    @apply relative inline-block rounded-md bg-terracota-50 px-4 py-2 font-mono font-bold tracking-[0.25em] text-terracota-900;
+    @apply relative inline-block rounded-lg bg-terracota-50 px-4 py-2 font-mono font-bold tracking-[0.25em] text-terracota-800;
     border: 2px dashed var(--color-terracota-300);
   }
 }

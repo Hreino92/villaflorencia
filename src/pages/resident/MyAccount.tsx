@@ -32,7 +32,7 @@ export default function MyAccount() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="card">
-          <h2 className="mb-3 font-bold">Cuotas</h2>
+          <h2 className="mb-3 font-semibold">Cuotas</h2>
           <table className="table">
             <thead><tr><th>Concepto</th><th>Vence</th><th className="text-right">Pendiente</th><th>Estado</th></tr></thead>
             <tbody>
@@ -48,7 +48,7 @@ export default function MyAccount() {
           </table>
         </div>
         <div className="card">
-          <h2 className="mb-3 font-bold">Mis recibos</h2>
+          <h2 className="mb-3 font-semibold">Mis recibos</h2>
           {payments.length === 0 ? (
             <Empty>Aún no hay pagos registrados.</Empty>
           ) : (

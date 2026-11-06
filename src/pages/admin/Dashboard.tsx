@@ -36,13 +36,13 @@ function HouseMap() {
   return (
     <section className="card" aria-labelledby="map-title">
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="map-title" className="text-[19px] font-extrabold tracking-tight">
+        <h2 id="map-title" className="text-[18px] font-semibold tracking-tight">
           {counts.pagado} de {db.houses.length} casas al día en {periodLabel(period)}
         </h2>
         <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-slate-600">
           {(['pagado', 'parcial', 'pendiente', 'vencido'] as const).map((k) => (
             <li key={k} className="flex items-center gap-1.5">
-              <span className={`h-3 w-3 rounded-[3px] ${STATUS_STYLE[k].tile}`} />
+              <span className={`h-3 w-3 rounded-[4px] ${STATUS_STYLE[k].tile}`} />
               {k === 'pagado' ? 'Al día' : STATUS_STYLE[k].label} ({counts[k]})
             </li>
           ))}
@@ -56,7 +56,7 @@ function HouseMap() {
               {houses.map((h) => {
                 const st = statusOf.get(h.id)!;
                 return (
-                  <li key={h.id} title={`${houseLabel(h)}: ${STATUS_STYLE[st].label}`} className={`flex h-9 w-9 items-center justify-center rounded-md text-[13px] font-bold ${STATUS_STYLE[st].tile}`}>
+                  <li key={h.id} title={`${houseLabel(h)}: ${STATUS_STYLE[st].label}`} className={`flex h-9 w-9 items-center justify-center rounded-lg text-[13px] font-medium ${STATUS_STYLE[st].tile}`}>
                     <span className="sr-only">{houseLabel(h)}, {STATUS_STYLE[st].label}: </span>
                     {h.lote}
                   </li>
@@ -89,18 +89,19 @@ export default function Dashboard() {
       <HouseMap />
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Cobrado este mes" value={money(income.total)} hint={`${income.payments.length} recibos emitidos`} tone="green" />
-        <Stat label="Cuota del mes cobrada" value={`${(income.rate * 100).toFixed(0)}%`} hint={`${money(income.collectedForPeriod)} de ${money(income.billed)}`} />
-        <Stat label="Casas en mora" value={String(mora.length)} hint={`${money(moraTotal)} vencido`} tone="red" />
-        <Stat label="Avisos por enviar" value={String(pendingNotices)} hint="WhatsApp de hoy" tone="amber" />
+        <Stat label="Cobrado este mes" value={money(income.total)} hint={`${income.payments.length} recibos emitidos`} tone="green" countUp />
+        <Stat label="Cuota del mes cobrada" value={`${(income.rate * 100).toFixed(0)}%`} hint={`${money(income.collectedForPeriod)} de ${money(income.billed)}`} countUp />
+        <Stat label="Casas en mora" value={String(mora.length)} hint={`${money(moraTotal)} vencido`} tone="red" countUp />
+        <Stat label="Avisos por enviar" value={String(pendingNotices)} hint="WhatsApp de hoy" tone="amber" countUp />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <div className="card">
+        <div className="card min-w-0">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-bold">Casas en mora</h2>
+            <h2 className="font-semibold">Casas en mora</h2>
             <Link to="/admin/reportes" className="text-sm font-semibold text-terracota-700 hover:underline">Ver reporte</Link>
           </div>
+          <div className="-mx-3 overflow-x-auto">
           <table className="table">
             <thead><tr><th>Casa</th><th>Meses</th><th className="text-right">Vencido</th></tr></thead>
             <tbody>
@@ -113,14 +114,16 @@ export default function Dashboard() {
               ))}
             </tbody>
           </table>
+          </div>
           {mora.length === 0 && <p className="text-sm text-slate-500">Todas las casas están al día.</p>}
         </div>
 
-        <div className="card">
+        <div className="card min-w-0">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-bold">Últimos pagos</h2>
+            <h2 className="font-semibold">Últimos pagos</h2>
             <Link to="/admin/pagos" className="text-sm font-semibold text-terracota-700 hover:underline">Ver todos</Link>
           </div>
+          <div className="-mx-3 overflow-x-auto">
           <table className="table">
             <thead><tr><th>Recibo</th><th>Casa</th><th>Fecha</th><th className="text-right">Monto</th></tr></thead>
             <tbody>
@@ -137,15 +140,16 @@ export default function Dashboard() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
 
         <div className="card lg:col-span-2">
-          <h2 className="mb-3 font-bold">Visitas de hoy ({visitsToday.length})</h2>
+          <h2 className="mb-3 font-semibold">Visitas de hoy ({visitsToday.length})</h2>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {visitsToday.map((v) => {
               const h = db.houses.find((x) => x.id === v.houseId);
               return (
-                <div key={v.code} className="rounded-lg border border-slate-200 p-3 text-sm">
+                <div key={v.code} className="rounded-xl border border-slate-200 p-4 text-sm">
                   <div className="font-semibold">{v.visitorName}</div>
                   <div className="text-slate-500">{h ? houseLabel(h) : v.houseId} · código {v.code}</div>
                   <div className={v.enteredAt ? 'text-emerald-700' : 'text-amber-600'}>{v.enteredAt ? `Ingresó ${v.enteredAt.slice(11, 16)}` : 'Aún no ingresa'}</div>

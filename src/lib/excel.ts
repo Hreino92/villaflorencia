@@ -6,18 +6,18 @@ import { houseLabel } from './billing';
 import { capitalize, fmtDate, localISODate, periodLabel } from './dates';
 import { financialSummary, housesInRange, moraList, rangeLabel, statement } from './reports';
 
-const BRAND = 'FF97523C';
-const BRAND_SOFT = 'FFFAF1EC';
-const MUTED = 'FF64748B';
-const ZEBRA = 'FFF8FAFC';
+const BRAND = 'FF9A5A46';
+const BRAND_SOFT = 'FFF5E6DF';
+const MUTED = 'FF6F655B';
+const ZEBRA = 'FFFAF7F2';
 const MONEY = '"$"#,##0.00';
 const STATUS: Record<string, { fill: string; font: string; label: string }> = {
-  pagado: { fill: 'FFDCFCE7', font: 'FF15803D', label: 'Pagado' },
-  pendiente: { fill: 'FFFEF3C7', font: 'FF92400E', label: 'Pendiente' },
-  parcial: { fill: 'FFE0F2FE', font: 'FF0369A1', label: 'Parcial' },
-  vencido: { fill: 'FFFEE2E2', font: 'FFB91C1C', label: 'Mora' },
-  adelantado: { fill: 'FFEDE9FE', font: 'FF5B21B6', label: 'Adelantado' },
-  'sin cargo': { fill: 'FFFFFFFF', font: 'FF94A3B8', label: '-' },
+  pagado: { fill: 'FFE9EFE3', font: 'FF3A4E30', label: 'Pagado' },
+  pendiente: { fill: 'FFF6EEDC', font: 'FF614621', label: 'Pendiente' },
+  parcial: { fill: 'FFE3EBF0', font: 'FF374A55', label: 'Parcial' },
+  vencido: { fill: 'FFF8E4E6', font: 'FF7C2934', label: 'Mora' },
+  adelantado: { fill: 'FFD2DEC6', font: 'FF2F3F27', label: 'Adelantado' },
+  'sin cargo': { fill: 'FFFFFFFF', font: 'FF8B9096', label: '-' },
 };
 
 async function newWorkbook(db: DB): Promise<Workbook> {
@@ -243,7 +243,7 @@ export async function housesXLSX(db: DB, from: string, to: string, today: string
       cell.font = { bold: true, color: { argb: st.font } };
       cell.alignment = { horizontal: 'center' };
     });
-    if (r.pending > 0) ws.getRow(5 + ri).getCell(first + 2).font = { bold: true, color: { argb: 'FFDC2626' } };
+    if (r.pending > 0) ws.getRow(5 + ri).getCell(first + 2).font = { bold: true, color: { argb: 'FF96313E' } };
   });
   ws.views = [{ state: 'frozen', xSplit: 1, ySplit: 4 }];
   return toFile(wb, `Reporte-casas-${from}${from === to ? '' : `_a_${to}`}.xlsx`);

@@ -42,16 +42,16 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen md:grid md:grid-cols-[248px_1fr]">
-      <aside className="bg-terracota-600 text-white md:sticky md:top-0 md:flex md:h-screen md:flex-col">
+      <aside className="border-b border-slate-200 bg-slate-50 md:sticky md:top-0 md:flex md:h-screen md:flex-col md:border-r md:border-b-0">
         <div className="flex items-center justify-between gap-3 px-5 py-4 md:py-6">
           <div className="flex min-w-0 items-center gap-3">
             <Veranera size={36} className="shrink-0" />
             <div className="min-w-0 leading-tight">
-              {kind && <div className="text-[13px] text-terracota-100">{kind}</div>}
-              <div className="truncate text-[19px] font-extrabold tracking-tight text-white">{name}</div>
+              {kind && <div className="text-[13px] text-slate-500">{kind}</div>}
+              <div className="truncate text-[18px] font-semibold tracking-tight text-terracota-700">{name}</div>
             </div>
           </div>
-          <button className="btn btn-sm border border-terracota-300/60 text-white md:hidden" aria-expanded={open} onClick={() => setOpen(!open)}>
+          <button className="btn btn-sm btn-secondary md:hidden" aria-expanded={open} onClick={() => setOpen(!open)}>
             Menú
           </button>
         </div>
@@ -64,18 +64,18 @@ export default function Layout() {
               end
               onClick={() => setOpen(false)}
               className={({ isActive }) =>
-                `rounded-[10px] border-l-[3px] px-3 py-2.5 text-[15px] font-semibold transition-colors duration-150 focus-visible:outline-white ${
-                  isActive ? 'border-white bg-terracota-700 text-white' : 'border-transparent text-terracota-50 hover:bg-terracota-700/60'
+                `flex min-h-11 items-center rounded-lg border-l-2 px-3 text-[15px] transition-colors duration-150 ${
+                  isActive ? 'border-terracota-500 bg-terracota-100 font-medium text-terracota-700' : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`
               }
             >
               {n.label}
             </NavLink>
           ))}
-          <div className="mt-3 border-t border-terracota-500 px-3 pt-3 md:mt-auto">
-            <div className="truncate text-[15px] font-semibold text-white">{session.name}</div>
-            <div className="truncate text-[13px] text-terracota-100">{house ? houseLabel(house) : ROLE_LABEL[session.role]}</div>
-            <button className="btn btn-sm mt-3 w-full border border-terracota-300/60 text-white hover:bg-terracota-700 focus-visible:outline-white" onClick={logout}>
+          <div className="mt-4 border-t border-slate-200 px-3 pt-4 md:mt-auto">
+            <div className="truncate text-[15px] font-medium text-slate-900">{session.name}</div>
+            <div className="truncate text-[13px] text-slate-500">{house ? houseLabel(house) : ROLE_LABEL[session.role]}</div>
+            <button className="btn btn-sm btn-secondary mt-3 w-full" onClick={logout}>
               Cerrar sesión
             </button>
           </div>
@@ -84,24 +84,24 @@ export default function Layout() {
 
       <div className="min-w-0">
         {usingEmulators && (
-          <div className="bg-sky-700 px-4 py-1.5 text-center text-[13px] font-semibold text-white">
+          <div className="bg-sky-100 px-4 py-1.5 text-center text-[13px] text-sky-800">
             Modo de pruebas local: los datos están en los emuladores de esta computadora
           </div>
         )}
         {db.config.simulatedToday && (
-          <div className="bg-amber-300 px-4 py-1.5 text-center text-[13px] font-semibold text-amber-950">
+          <div className="bg-amber-100 px-4 py-1.5 text-center text-[13px] text-amber-900">
             Fecha simulada: {fmtDate(db.config.simulatedToday)}
           </div>
         )}
         {syncError && (
-          <div role="alert" className="flex items-center justify-center gap-3 bg-red-700 px-4 py-2 text-sm text-white">
+          <div role="alert" className="flex items-center justify-center gap-3 bg-red-100 px-4 py-2 text-sm text-red-800">
             {syncError}
-            <button className="underline" onClick={clearSyncError}>Cerrar</button>
+            <button className="min-h-11 cursor-pointer font-medium underline" onClick={clearSyncError}>Cerrar</button>
           </div>
         )}
-        <main className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
+        <main className="mx-auto max-w-6xl px-4 py-6 md:px-10 md:py-10">
           {/* La clave reinicia la animación de entrada en cada pantalla. */}
-          <div key={pathname} className="stagger">
+          <div key={pathname} className="animate-rise">
             <Outlet />
           </div>
         </main>

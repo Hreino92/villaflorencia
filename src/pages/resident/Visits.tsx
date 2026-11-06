@@ -59,7 +59,7 @@ export default function Visits() {
       <PageTitle title="Mis visitas" subtitle={`Códigos de acceso para ${houseLabel(house)}`} />
       <div className="grid gap-6 lg:grid-cols-[2fr_3fr]">
         <div className="card">
-          <h2 className="mb-3 font-bold">Nuevo visitante</h2>
+          <h2 className="mb-3 font-semibold">Nuevo visitante</h2>
           {allowed ? (
             <form onSubmit={submit} className="space-y-3">
               <Field label="Nombre completo del visitante"><input className="input" value={form.visitorName} onChange={(e) => setForm({ ...form, visitorName: e.target.value })} required /></Field>
@@ -76,7 +76,7 @@ export default function Visits() {
 
         <div className="space-y-6">
           <div className="card">
-            <h2 className="mb-3 font-bold">Próximas visitas</h2>
+            <h2 className="mb-3 font-semibold">Próximas visitas</h2>
             {upcoming.length === 0 ? (
               <Empty>No hay visitas programadas.</Empty>
             ) : (
@@ -104,7 +104,7 @@ export default function Visits() {
           </div>
           {past.length > 0 && (
             <div className="card">
-              <h2 className="mb-3 font-bold">Historial</h2>
+              <h2 className="mb-3 font-semibold">Historial</h2>
               <ul className="divide-y divide-slate-100 text-sm">
                 {past.slice(0, 20).map((v) => (
                   <li key={v.code} className="flex justify-between py-2">

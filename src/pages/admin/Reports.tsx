@@ -92,7 +92,7 @@ export default function Reports() {
           </div>
 
           <div className="card mb-6">
-            <h2 className="mb-3 font-bold">Ingresos y gastos por mes</h2>
+            <h2 className="mb-3 font-semibold">Ingresos y gastos por mes</h2>
             <MonthChart months={s.months} />
           </div>
         </>
@@ -102,7 +102,7 @@ export default function Reports() {
         <div className="card mb-6">
           <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="font-bold">Meses pagados por casa</h2>
+              <h2 className="font-semibold">Meses pagados por casa</h2>
               <p className="text-xs text-slate-500">{rangeLabel(from, to)}. Para ver los meses adelantados, incluye meses futuros en el rango (por ejemplo, "Este año").</p>
             </div>
             <Buttons id="houses" pdf={async () => (await lib()).housesPDF(db, from, to, today)} xlsx={async () => (await excel()).housesXLSX(db, from, to, today)} />
@@ -131,7 +131,7 @@ export default function Reports() {
       <div className="card">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="font-bold">Gastos de {valid ? rangeLabel(from, to) : 'la residencial'}</h2>
+            <h2 className="font-semibold">Gastos de {valid ? rangeLabel(from, to) : 'la residencial'}</h2>
             <p className="text-xs text-slate-500">Lo que se pagó con el fondo de la residencial. Aparece en el informe financiero.</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -164,7 +164,7 @@ export default function Reports() {
                 ))}
               </tbody>
               <tfoot>
-                <tr><td colSpan={5} className="pt-2 text-right font-semibold">Total</td><td className="pt-2 text-right font-bold">{money(expenses.reduce((t, e) => t + e.amount, 0))}</td><td /></tr>
+                <tr><td colSpan={5} className="pt-2 text-right font-semibold">Total</td><td className="pt-2 text-right font-semibold">{money(expenses.reduce((t, e) => t + e.amount, 0))}</td><td /></tr>
               </tfoot>
             </table>
           </div>
@@ -178,16 +178,16 @@ export default function Reports() {
 
 // Cada estado lleva color y símbolo: se distingue aunque no se perciban bien los colores.
 const CELL: Record<CellStatus, { cls: string; mark: string; label: string }> = {
-  pagado: { cls: 'bg-emerald-600 text-white', mark: '✓', label: 'Pagado' },
-  adelantado: { cls: 'bg-violet-600 text-white', mark: '»', label: 'Pagado por adelantado' },
-  parcial: { cls: 'bg-sky-200 text-sky-950', mark: '½', label: 'Abono parcial' },
-  pendiente: { cls: 'bg-white text-slate-500 border border-slate-300', mark: '·', label: 'Pendiente (aún no vence)' },
-  vencido: { cls: 'bg-red-700 text-white', mark: '!', label: 'En mora' },
-  'sin cargo': { cls: 'bg-slate-100 text-slate-300', mark: '', label: 'Sin cuota registrada' },
+  pagado: { cls: 'bg-emerald-100 text-emerald-800', mark: '✓', label: 'Pagado' },
+  adelantado: { cls: 'bg-emerald-200 text-emerald-900', mark: '»', label: 'Pagado por adelantado' },
+  parcial: { cls: 'bg-sky-100 text-sky-800', mark: '½', label: 'Abono parcial' },
+  pendiente: { cls: 'bg-amber-50 text-amber-800 border border-amber-200', mark: '·', label: 'Pendiente (aún no vence)' },
+  vencido: { cls: 'bg-red-200 text-red-900', mark: '!', label: 'En mora' },
+  'sin cargo': { cls: 'bg-slate-50 text-slate-300', mark: '', label: 'Sin cuota registrada' },
 };
 const OVERALL = {
   'al día': 'text-emerald-800',
-  adelantado: 'text-violet-800',
+  adelantado: 'text-emerald-700',
   mora: 'text-red-700',
 } as const;
 
@@ -212,12 +212,12 @@ function HouseGantt({ rows, current }: { rows: HouseRangeRow[]; current: string 
       <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-slate-600">
         {(['pagado', 'adelantado', 'parcial', 'pendiente', 'vencido'] as const).map((k) => (
           <li key={k} className="flex items-center gap-1.5">
-            <span className={`flex h-4 w-5 items-center justify-center rounded-[3px] text-[10px] font-bold ${CELL[k].cls}`}>{CELL[k].mark}</span>
+            <span className={`flex h-4 w-5 items-center justify-center rounded-[3px] text-[10px] font-semibold ${CELL[k].cls}`}>{CELL[k].mark}</span>
             {CELL[k].label}
           </li>
         ))}
       </ul>
-      <div className="max-h-[70vh] overflow-auto rounded-lg border border-slate-200">
+      <div className="max-h-[70vh] overflow-auto rounded-xl border border-slate-200">
         <table className="w-full border-separate border-spacing-0 text-[13px]">
           <thead className="sticky top-0 z-10 bg-white">
             <tr>
@@ -241,7 +241,7 @@ function HouseGantt({ rows, current }: { rows: HouseRangeRow[]; current: string 
                   <td key={c.period} className="px-0.5 py-1">
                     <div
                       title={`${houseLabel(r.house)}, ${periodLabel(c.period)}: ${CELL[c.status].label}`}
-                      className={`flex h-7 min-w-8 items-center justify-center rounded-[4px] text-xs font-bold ${CELL[c.status].cls}`}
+                      className={`flex h-7 min-w-8 items-center justify-center rounded-[4px] text-xs font-semibold ${CELL[c.status].cls}`}
                     >
                       <span aria-hidden="true">{CELL[c.status].mark}</span>
                       <span className="sr-only">{periodLabel(c.period)}: {CELL[c.status].label}</span>
@@ -265,7 +265,7 @@ function ReportCard({ title, text, children }: { title: string; text: string; ch
   return (
     <div className="card flex flex-col justify-between gap-3">
       <div>
-        <h3 className="font-bold">{title}</h3>
+        <h3 className="font-semibold">{title}</h3>
         <p className="text-sm text-slate-500">{text}</p>
       </div>
       {children}
@@ -273,38 +273,62 @@ function ReportCard({ title, text, children }: { title: string; text: string; ch
   );
 }
 
-/** Barras agrupadas ingresos vs gastos; valores visibles y detalle al pasar el cursor. */
+/** Barras agrupadas ingresos vs gastos. Con pocos meses el monto va sobre cada barra; siempre hay detalle al pasar el cursor. */
 function MonthChart({ months }: { months: { period: string; income: number; expenses: number }[] }) {
   const max = Math.max(1, ...months.flatMap((m) => [m.income, m.expenses]));
+  const directLabels = months.length <= 6;
+  const series = [
+    { key: 'income', label: 'Ingresos', cls: 'bg-emerald-500' },
+    { key: 'expenses', label: 'Gastos', cls: 'bg-terracota-500' },
+  ] as const;
   return (
-    <div>
-      <div className="mb-2 flex gap-4 text-xs text-slate-600">
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: '#4c7f3b' }} />Ingresos</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: '#eb6834' }} />Gastos</span>
-      </div>
-      <div className="flex h-48 items-end gap-3 overflow-x-auto border-b border-slate-300 pb-0">
-        {months.map((m) => (
-          <div key={m.period} className="flex min-w-14 flex-1 flex-col items-center" title={`${capitalize(periodLabel(m.period))}\nIngresos: ${money(m.income)}\nGastos: ${money(m.expenses)}\nResultado: ${money(round2(m.income - m.expenses))}`}>
-            <div className="flex h-44 w-full items-end justify-center gap-0.5">
-              {[
-                { v: m.income, c: '#4c7f3b' },
-                { v: m.expenses, c: '#eb6834' },
-              ].map((b, i) => (
-                <div key={i} className="flex h-full w-1/2 max-w-8 flex-col items-center justify-end">
-                  <span className="mb-0.5 text-[10px] text-slate-600">${Math.round(b.v)}</span>
-                  <div className="w-full rounded-t" style={{ height: `${(b.v / max) * 85}%`, background: b.c, minHeight: b.v > 0 ? 2 : 0 }} />
+    <figure>
+      <figcaption className="mb-4 flex gap-5 text-[13px] text-slate-600">
+        {series.map((s) => (
+          <span key={s.key} className="flex items-center gap-1.5">
+            <span className={`h-2.5 w-2.5 rounded-full ${s.cls}`} aria-hidden="true" />
+            {s.label}
+          </span>
+        ))}
+      </figcaption>
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: months.length * 56 }}>
+          <div className="relative h-48 border-b border-slate-200">
+            {/* Cuadrícula solo horizontal, muy tenue. */}
+            {[0, 25, 50, 75].map((p) => (
+              <div key={p} className="pointer-events-none absolute inset-x-0 border-t border-grid" style={{ top: `${p}%` }} aria-hidden="true" />
+            ))}
+            <div className="relative flex h-full items-end gap-3">
+              {months.map((m, mi) => (
+                <div
+                  key={m.period}
+                  className="flex h-full flex-1 items-end justify-center gap-1"
+                  title={`${capitalize(periodLabel(m.period))}\nIngresos: ${money(m.income)}\nGastos: ${money(m.expenses)}\nResultado: ${money(round2(m.income - m.expenses))}`}
+                >
+                  {series.map((s, si) => {
+                    const v = m[s.key];
+                    return (
+                      <div key={s.key} className="flex h-full w-1/2 max-w-7 flex-col items-center justify-end">
+                        {directLabels && <span className="mb-1 text-[11px] text-slate-500 tabular-nums">${Math.round(v)}</span>}
+                        <div
+                          className={`w-full origin-bottom rounded-t-[4px] animate-grow ${s.cls}`}
+                          style={{ height: `${(v / max) * 85}%`, minHeight: v > 0 ? 2 : 0, animationDelay: `${(mi * 2 + si) * 30}ms` }}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               ))}
             </div>
           </div>
-        ))}
+          <div className="flex gap-3">
+            {months.map((m) => (
+              <div key={m.period} className="flex-1 pt-2 text-center text-xs text-slate-500">{capitalize(periodLabel(m.period).slice(0, 3))} {m.period.slice(2, 4)}</div>
+            ))}
+          </div>
+        </div>
       </div>
-      <div className="flex gap-3 overflow-x-auto">
-        {months.map((m) => (
-          <div key={m.period} className="min-w-14 flex-1 pt-1 text-center text-xs text-slate-500">{capitalize(periodLabel(m.period).slice(0, 3))} {m.period.slice(2, 4)}</div>
-        ))}
-      </div>
-    </div>
+    </figure>
   );
 }
 
