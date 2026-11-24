@@ -7,16 +7,19 @@ import { Empty, Field, Modal, PageTitle } from '../../components/ui';
 import ReceiptActions from '../../components/ReceiptActions';
 import HouseSelect from '../../components/HouseSelect';
 
+const PAGE = 25;
+
 export default function Payments() {
   const db = useDB();
   const [q, setQ] = useState('');
+  const [page, setPage] = useState(0);
   const [registering, setRegistering] = useState(false);
   const [done, setDone] = useState<Payment | null>(null);
   const [editing, setEditing] = useState<Payment | null>(null);
   const [voiding, setVoiding] = useState<Payment | null>(null);
 
   const term = q.trim().toLowerCase();
-  const list = useMemo(
+  const all = useMemo(
     () =>
       [...db.payments]
         .sort((a, b) => b.receiptNo - a.receiptNo)
@@ -24,15 +27,17 @@ export default function Payments() {
           if (!term) return true;
           const h = db.houses.find((x) => x.id === p.houseId);
           return String(p.receiptNo).includes(term) || p.payerName.toLowerCase().includes(term) || (h ? houseMatches(h, term) : false);
-        })
-        .slice(0, 100),
+        }),
     [db, term],
   );
+  const pages = Math.max(1, Math.ceil(all.length / PAGE));
+  const current = Math.min(page, pages - 1);
+  const list = all.slice(current * PAGE, current * PAGE + PAGE);
 
   return (
     <>
       <PageTitle title="Pagos y recibos" subtitle="Pagos en efectivo recibidos por la administración" actions={<button className="btn btn-primary" onClick={() => setRegistering(true)}>Registrar pago</button>} />
-      <input className="input mb-4 max-w-sm" placeholder="Buscar: recibo, C14 o nombre" value={q} onChange={(e) => setQ(e.target.value)} />
+      <input className="input mb-4 max-w-sm" placeholder="Buscar: recibo, C14 o nombre" value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
       <div className="card overflow-x-auto p-0">
         <table className="table">
           <thead><tr><th>Recibo</th><th>Fecha</th><th>Casa</th><th>Pagado por</th><th>Aplicado a</th><th className="text-right">Monto</th><th></th></tr></thead>
@@ -58,6 +63,18 @@ export default function Payments() {
         </table>
         {list.length === 0 && <div className="p-4"><Empty>No hay pagos que coincidan.</Empty></div>}
       </div>
+      {all.length > PAGE && (
+        <nav className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500" aria-label="Páginas de pagos">
+          <span>
+            {current * PAGE + 1}–{current * PAGE + list.length} de {all.length} pagos
+          </span>
+          <div className="flex items-center gap-2">
+            <button className="btn btn-secondary btn-sm" disabled={current === 0} onClick={() => setPage(current - 1)}>Anteriores</button>
+            <span>Página {current + 1} de {pages}</span>
+            <button className="btn btn-secondary btn-sm" disabled={current >= pages - 1} onClick={() => setPage(current + 1)}>Siguientes</button>
+          </div>
+        </nav>
+      )}
 
       {registering && (
         <RegisterPayment
